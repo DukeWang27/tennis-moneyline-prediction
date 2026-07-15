@@ -1,0 +1,59 @@
+data:
+  start_year: 2000
+  end_year: 2026
+  cache_dir: data/raw
+  processed_path: data/processed/matches.parquet
+  include_lower_levels: true
+  request_timeout_seconds: 45
+  tier_overrides_path: null
+  exact_dates_path: null
+
+filters:
+  context_dir: data/context
+  fatigue_matches: 3
+  fatigue_window_days: 4
+  pre_slam_window_days: 14
+  low_tier_before_slam: ["250", "Challenger", "ITF"]
+
+features:
+  initial_elo: 1500.0
+  elo_k: 32.0
+  surface_prior_matches: 20.0
+  retirement_elo_weight: 0.25
+  walkover_elo_weight: 0.0
+  recent_form_half_life_days: 30.0
+  h2h_min_matches: 3
+  rest_days_cap: 60
+
+model:
+  model_type: boosted
+  calibration: isotonic
+  random_state: 27
+  lightgbm_params:
+    n_estimators: 350
+    learning_rate: 0.035
+    num_leaves: 24
+    max_depth: 6
+    min_child_samples: 80
+    subsample: 0.85
+    colsample_bytree: 0.85
+    reg_alpha: 0.25
+    reg_lambda: 1.0
+    verbosity: -1
+
+backtest:
+  min_train_years: 3
+  test_months: 3
+  calibration_days: 180
+  min_calibration_rows: 500
+  edge_threshold: 0.02
+  kelly_fraction: 0.25
+  max_kelly_fraction: 0.05
+  bootstrap_samples: 1000
+  random_state: 27
+
+odds:
+  normalized_snapshots_path: null
+  api_key_env: ODDS_API_KEY
+  regions: us,uk,eu
+  bookmakers: null

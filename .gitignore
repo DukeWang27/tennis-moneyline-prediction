@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local configuration and secrets
+config.yaml
+.env
+.env.*
+
+# Generated data and model outputs
+data/raw/
+data/processed/
+outputs/
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
