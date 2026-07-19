@@ -1,38 +1,37 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
 
-# Virtual environments
-.venv/
-venv/
-
-# Local configuration and secrets
-config.yaml
-.env
-.env.*
-
+# Backups and caches
 # Generated data and model outputs
-data/raw/
-data/processed/
-outputs/
-
-# macOS / editors
-.DS_Store
-.vscode/
-.idea/
-
+# Generated datasets and databases
+# Local configuration and secrets
+# Local environment and secrets
+# Python
 # Streamlit secrets (never commit real secrets)
-.streamlit/secrets.toml
-.mypy_cache/
-data/
+# Virtual environments
+# macOS / editors
 *.db
-*.sqlite
-*.sqlite3
+*.egg-info/
 *.joblib
 *.parquet
+*.py[cod]
+*.sqlite
+*.sqlite3
 *.zip
-surface_patch_backups/
+.DS_Store
+.env
+.env.*
+.idea/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.streamlit/secrets.toml
+.venv/
+.vscode/
+__pycache__/
+config.yaml
 dashboard_patch_backups/
+data/
+data/processed/
+data/raw/
+outputs/
+surface_patch_backups/
+venv/
