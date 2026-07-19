@@ -15,6 +15,7 @@ def print_summary(metrics: pd.DataFrame) -> None:
         "accuracy",
         "brier",
         "log_loss",
+        "ece",
         "bets",
         "flat_roi",
         "flat_roi_ci_low",

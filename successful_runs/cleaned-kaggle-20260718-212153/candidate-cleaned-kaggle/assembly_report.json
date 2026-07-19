@@ -1,0 +1,15 @@
+{
+  "input_rows": 57902,
+  "resolved_rows": 57902,
+  "unresolved_rows": 0,
+  "unique_matches": 57902,
+  "duplicate_source_rows_merged": 0,
+  "by_source": {
+    "cleaned_kaggle_unified": 57902
+  },
+  "by_segment": {
+    "ATP_MAIN": 35976,
+    "ATP_CHALLENGER": 13266,
+    "WTA_MAIN": 8660
+  }
+}

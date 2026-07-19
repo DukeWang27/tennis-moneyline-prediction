@@ -4,7 +4,7 @@ A modular Python pipeline for ATP/WTA match ingestion, leakage-safe feature gene
 
 ## What is implemented
 
-- ATP and WTA yearly CSV ingestion from Jeff Sackmann's GitHub repositories, including optional ATP qualifying/Challenger and WTA qualifying/ITF files.
+- ATP and WTA yearly Sackmann-format CSV ingestion from attributable GitHub mirrors, including optional ATP qualifying/Challenger and WTA qualifying/ITF files.
 - Stable player IDs as the primary identity key, with conservative fuzzy matching for external odds feeds.
 - Explicit retirement, walkover, and incomplete-match fields. Walkovers receive zero Elo/model weight by default; retirements receive reduced weight rather than being silently treated like ordinary completed losses.
 - Toggleable match flags: round-robin/dead-rubber context, already-qualified context, fatigue, and low-tier event immediately before a Grand Slam.
@@ -40,6 +40,8 @@ cp config.example.yaml config.yaml
 ```bash
 tennis-download --config config.yaml
 ```
+
+The loader first tries yearly raw files, then falls back to shallow Git clones of maintained mirrors if the raw endpoints are unavailable. You can override the mirror locations with `TENNIS_ATP_REPO_URL`, `TENNIS_WTA_REPO_URL`, `TENNIS_ATP_RAW_URL`, and `TENNIS_WTA_RAW_URL`. Missing years are skipped and reported rather than fabricated.
 
 This creates a processed parquet file containing both an event date and an estimated/overridden match date.
 
@@ -132,3 +134,60 @@ pytest
 ```
 
 The included tests cover odds math, retirement handling, and the central no-leakage invariant: a match cannot influence its own pre-match features.
+
+## Streamlit dashboard
+
+The repository now includes a multipage dashboard for using the trained system outside the terminal.
+
+```bash
+python -m pip install -e ".[dev]"
+streamlit run streamlit_app.py
+```
+
+Streamlit opens the app at `http://localhost:8501`. The dashboard looks for these local artifacts by default:
+
+- `outputs/backtest/trained_system.joblib`
+- `outputs/backtest/metrics.csv`
+- `outputs/backtest/predictions.parquet`
+
+The pages include:
+
+- **Overview:** headline walk-forward results and model/tier comparisons.
+- **Match Predictor:** player selectors, calibrated probabilities, Elo comparison, filter flags, and player feature comparisons.
+- **Backtest Lab:** segment controls, calibration curves, performance through time, and the complete metric table.
+- **Match Explorer:** searchable prediction rows with confidence and correctness filters plus CSV export.
+- **Model Guide:** interpretation and deployment notes.
+
+### Prepare compact deployment artifacts
+
+Raw match data and `outputs/` remain ignored by Git. Create a smaller dashboard bundle instead:
+
+```bash
+tennis-prepare-dashboard \
+  --source outputs/backtest \
+  --destination dashboard_artifacts
+```
+
+This copies the trained system and metrics and writes a reduced, compressed prediction-history file. Check file sizes before committing; normal GitHub files must remain below its file-size limit.
+
+### Deploy on Streamlit Community Cloud
+
+1. Commit and push the application code and `dashboard_artifacts/`.
+2. In Streamlit Community Cloud, create an app from the GitHub repository.
+3. Set the entrypoint to `streamlit_app.py`.
+4. Select Python 3.11 or newer in advanced settings.
+
+`requirements.txt` installs the local project and its Python dependencies. `packages.txt` installs the Linux OpenMP runtime needed by LightGBM.
+
+### Dashboard path overrides
+
+For another artifact location, use the sidebar path controls or environment variables:
+
+```bash
+export TENNIS_MODEL_PATH=/path/to/trained_system.joblib
+export TENNIS_METRICS_PATH=/path/to/metrics.csv
+export TENNIS_PREDICTIONS_PATH=/path/to/predictions.parquet
+streamlit run streamlit_app.py
+```
+
+> The original Jeff Sackmann ATP/WTA repositories may not always be available. Keep an attributable local or mirrored copy of the source data and review the CC BY-NC-SA terms before publishing or commercializing the app.

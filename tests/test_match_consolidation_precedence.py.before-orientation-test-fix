@@ -1,0 +1,58 @@
+import pandas as pd
+
+from tennis_predictor.data import CanonicalMatchConsolidator
+from tennis_predictor.storage import IdentityStore
+
+
+def _row(source, **updates):
+    row = {
+        "source": source,
+        "source_match_id": source + "-1",
+        "date": pd.Timestamp("2026-07-01"),
+        "tournament": "Example Open",
+        "round": "R32",
+        "tour": "ATP",
+        "tier": "250",
+        "surface": "Unknown",
+        "player1": "Alpha One",
+        "player2": "Beta Two",
+        "player1_source_id": "alpha",
+        "player2_source_id": "beta",
+        "player1_won": 1,
+        "score": "6-4 6-4",
+        "status": "Completed",
+        "retirement": False,
+        "walkover": False,
+        "defaulted": False,
+        "void": False,
+    }
+    row.update(updates)
+    return row
+
+
+def test_field_level_precedence_and_deduplication(tmp_path):
+    store = IdentityStore(tmp_path / "identity.db")
+    consolidator = CanonicalMatchConsolidator(store)
+    api = pd.DataFrame([_row("api_tennis", surface="Unknown", score="6-3 6-3")])
+    kaggle = pd.DataFrame(
+        [
+            _row(
+                "kaggle_atp_daily",
+                surface="Hard",
+                score="6-4 6-4",
+                closing_odds_player1=1.55,
+                closing_odds_player2=2.55,
+                closing_odds_source="kaggle_atp_daily",
+                closing_odds_bookmaker="average",
+            )
+        ]
+    )
+    merged, unresolved, report, _ = consolidator.consolidate(
+        [(api, "api_tennis"), (kaggle, "kaggle_atp_daily")]
+    )
+    assert unresolved.empty
+    assert report.unique_matches == 1
+    assert report.duplicate_source_rows_merged == 1
+    assert merged.loc[0, "score"] == "6-3 6-3"  # API result precedence
+    assert merged.loc[0, "surface"] == "Hard"  # Kaggle metadata precedence
+    assert merged.loc[0, "closing_odds_player1"] == 1.55

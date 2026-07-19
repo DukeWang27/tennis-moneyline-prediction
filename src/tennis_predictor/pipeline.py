@@ -8,9 +8,10 @@ import numpy as np
 import pandas as pd
 
 from tennis_predictor.config import AppConfig
-from tennis_predictor.data.names import NameResolver
+from tennis_predictor.data.names import NameResolver, PlayerIdentity, normalize_name
 from tennis_predictor.features import FeatureEngineer
 from tennis_predictor.filters import FilterEngine, GrandSlamCalendar
+from tennis_predictor.quality import evaluate_match_sample_quality
 from tennis_predictor.models import (
     BoostedProbabilityModel,
     EloLogisticModel,
@@ -89,6 +90,93 @@ class TennisPredictionSystem:
         self.fitted = True
         return self
 
+    def register_player(self, player_id: str, name: str, tour: str) -> PlayerIdentity:
+        if self.name_resolver is None:
+            raise RuntimeError("Fit or load the system before registering players.")
+        existing = self.name_resolver.by_id.get(str(player_id))
+        if existing is not None:
+            return existing
+        identity = PlayerIdentity(
+            player_id=str(player_id),
+            name=str(name),
+            normalized_name=normalize_name(str(name)),
+            tour=str(tour).upper(),
+        )
+        self.name_resolver.register(identity)
+        self.feature_engineer.state.player(identity.player_id)
+        return identity
+
+    def update_state(self, completed_matches: pd.DataFrame) -> pd.DataFrame:
+        """Increment player state with completed matches; do not refit LightGBM.
+
+        Rows are passed through the existing FeatureEngineer in chronological order,
+        preserving the snapshot-first/update-second leakage guard. Replayed fixture IDs
+        are ignored by TennisState.
+        """
+        if not self.fitted or self.name_resolver is None:
+            raise RuntimeError("Fit or load a TennisPredictionSystem before updating state.")
+        if completed_matches.empty:
+            return pd.DataFrame()
+        frame = completed_matches.copy()
+        required = {
+            "match_id", "tour", "date", "event_date", "date_is_estimated",
+            "surface", "tier", "player1", "player2", "player1_id",
+            "player2_id", "player1_won", "match_num",
+        }
+        missing = required - set(frame.columns)
+        if missing:
+            raise ValueError(f"Incremental matches are missing columns: {sorted(missing)}")
+        frame = frame.dropna(subset=["date", "player1_won"]).copy()
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+        frame = frame.dropna(subset=["date"]).copy()
+        frame["surface"] = frame["surface"].fillna("Unknown").astype(str).str.title()
+        if frame.empty:
+            return pd.DataFrame()
+
+        processed = getattr(self.feature_engineer.state, "processed_match_ids", set())
+        unseen = frame[~frame["match_id"].astype(str).isin(processed)].copy()
+        state_date = self.feature_engineer.state.as_of
+        if state_date is not None and not unseen.empty:
+            earliest = unseen["date"].min().normalize()
+            if earliest < pd.Timestamp(state_date).normalize():
+                raise ValueError(
+                    "Out-of-order completed matches would leak future state backward. "
+                    "Rebuild the live model from the frozen pre-live artifact instead."
+                )
+        for row in frame.itertuples(index=False):
+            self.register_player(str(row.player1_id), str(row.player1), str(row.tour))
+            self.register_player(str(row.player2_id), str(row.player2), str(row.tour))
+        frame = FilterEngine(self.config.filters).add_static_flags(frame)
+        features = self.feature_engineer.transform(frame, reset=False)
+        if self.calendar is None:
+            self.calendar = GrandSlamCalendar.from_matches(frame)
+        else:
+            new_dates = GrandSlamCalendar.from_matches(frame).dates
+            self.calendar.dates = sorted(set(self.calendar.dates).union(new_dates))
+        return features
+
+
+    def score_feature_rows(self, features: pd.DataFrame) -> pd.DataFrame:
+        """Score pre-match rows without mutating player state.
+
+        FeatureEngineer creates each snapshot before applying that match result, so
+        these probabilities are safe to persist in the sequential replay ledger.
+        """
+        if features is None or features.empty:
+            return pd.DataFrame()
+        if not self.fitted or self.boosted_model is None:
+            raise RuntimeError("Fit or load the system before scoring feature rows.")
+        scored = features.copy()
+        age_adjustment = self.age_curve.elo_adjustment(
+            scored["age1"], scored["age2"], self.elo_model.scale
+        )
+        scored["elo_age_adjusted_diff"] = scored["elo_diff"].astype(float) + age_adjustment
+        scored["elo_prob"] = self.elo_model.predict_proba(scored["elo_age_adjusted_diff"])
+        raw = self.boosted_model.predict_proba(scored)
+        scored["p_model1"] = self.calibrator.predict(raw)
+        scored["p_elo1"] = scored["elo_prob"]
+        return scored
+
     def predict_match(
         self,
         player1: str,
@@ -115,6 +203,21 @@ class TennisPredictionSystem:
         identity2 = self.name_resolver.resolve(player2, tour=tour)
         surface = str(surface).title()
         tier = str(tournament_tier)
+        state1 = self.feature_engineer.state.players.get(identity1.player_id)
+        state2 = self.feature_engineer.state.players.get(identity2.player_id)
+        live_cfg = getattr(self.config, "live_data", None)
+        sample_quality = evaluate_match_sample_quality(
+            state1,
+            state2,
+            player1=identity1.name,
+            player2=identity2.name,
+            surface=surface,
+            match_date=date,
+            absolute_min_matches=getattr(live_cfg, "cold_start_min_matches", 8),
+            recommended_matches=getattr(live_cfg, "recommended_prediction_matches", 20),
+            recommended_surface_matches=getattr(live_cfg, "recommended_surface_matches", 5),
+            max_staleness_days=getattr(live_cfg, "max_player_staleness_days", 120),
+        )
         features = self.feature_engineer.state.snapshot(
             identity1.player_id,
             identity2.player_id,
@@ -161,6 +264,29 @@ class TennisPredictionSystem:
             "pre_slam_rest_risk_player2": bool(pre_slam),
             "large_line_move": bool(large_line_move),
         }
+        feature_snapshot_keys = [
+            "elo_overall1", "elo_overall2", "elo_surface_raw1", "elo_surface_raw2",
+            "surface_matches1", "surface_matches2", "elo_blended1", "elo_blended2",
+            "elo_diff", "age1", "age2", "age_diff", "tour_matches1", "tour_matches2",
+            "years_on_tour1", "years_on_tour2", "injury_incidents_12m1",
+            "injury_incidents_12m2", "form10_1", "form10_2", "form20_1", "form20_2",
+            "h2h_matches", "h2h_diff", "rest_days1", "rest_days2",
+            "matches_prev_window1", "matches_prev_window2",
+        ]
+        feature_snapshot = {
+            key: (None if pd.isna(features.get(key)) else features.get(key))
+            for key in feature_snapshot_keys
+        }
+        feature_snapshot.update(
+            {
+                "total_matches1": sample_quality.player1.total_matches,
+                "total_matches2": sample_quality.player2.total_matches,
+                "last_match_date1": sample_quality.player1.last_match_date,
+                "last_match_date2": sample_quality.player2.last_match_date,
+                "staleness_days1": sample_quality.player1.staleness_days,
+                "staleness_days2": sample_quality.player2.staleness_days,
+            }
+        )
         return {
             "player1": identity1.name,
             "player2": identity2.name,
@@ -170,6 +296,8 @@ class TennisPredictionSystem:
             "player1_win_probability": probability,
             "player2_win_probability": 1.0 - probability,
             "elo_probability": features["elo_prob"],
+            "feature_snapshot": feature_snapshot,
+            "sample_quality": sample_quality.to_dict(),
             "active_filter_flags": [name for name, active in flags.items() if active],
             "filter_flags": flags,
             "unknown_context": {

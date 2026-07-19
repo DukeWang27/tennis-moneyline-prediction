@@ -1,0 +1,33 @@
+{
+  "status": "INCONCLUSIVE",
+  "required_segments": [
+    "ATP_CHALLENGER",
+    "ITF_MEN",
+    "ITF_WOMEN"
+  ],
+  "passed_segments": [],
+  "failed_segments": [],
+  "inconclusive_segments": [
+    "ATP_CHALLENGER",
+    "ITF_MEN",
+    "ITF_WOMEN"
+  ],
+  "comparisons": [
+    {
+      "segment": "ATP_CHALLENGER",
+      "status": "INCONCLUSIVE",
+      "reason": "no shared match key"
+    },
+    {
+      "segment": "ITF_MEN",
+      "status": "INCONCLUSIVE",
+      "reason": "only 0 paired matches",
+      "required": 200
+    },
+    {
+      "segment": "ITF_WOMEN",
+      "status": "INCONCLUSIVE",
+      "reason": "no shared match key"
+    }
+  ]
+}

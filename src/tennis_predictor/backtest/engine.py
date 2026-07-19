@@ -134,13 +134,15 @@ class WalkForwardBacktester:
     @staticmethod
     def _prediction_frame(test: pd.DataFrame, probability: np.ndarray, fold: int, model: str) -> pd.DataFrame:
         keep = [
-            "match_id", "date", "tour", "tier", "surface", "tournament", "round",
-            "player1", "player2", "player1_won", "retirement", "walkover",
+            "match_id", "match_fingerprint", "chronology_ts", "date", "tour", "tier", "competition_segment", "surface",
+            "tournament", "round", "is_qualifying", "player1", "player2",
+            "player1_won", "retirement", "walkover", "defaulted",
             "eligible_with_filters", "any_filter_flag", "dead_rubber", "already_qualified",
             "fatigue_player1", "fatigue_player2", "pre_slam_rest_risk_player1",
             "pre_slam_rest_risk_player2", "large_line_move", "market_p1_open",
             "market_p1_close", "market_decimal1_open", "market_decimal2_open",
-            "market_decimal1_close", "market_decimal2_close",
+            "market_decimal1_close", "market_decimal2_close", "closing_odds_source",
+            "closing_odds_bookmaker", "odds_benchmark_type",
         ]
         output = test.reindex(columns=keep).copy()
         output["actual"] = test["player1_won"].to_numpy()

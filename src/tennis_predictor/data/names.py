@@ -62,6 +62,19 @@ class NameResolver:
                 )
         return cls(list(records.values()), threshold=threshold)
 
+
+    def register(self, identity: PlayerIdentity) -> None:
+        """Add one provider identity without rebuilding the resolver."""
+        existing = self.by_id.get(identity.player_id)
+        if existing is not None:
+            return
+        self.identities.append(identity)
+        self.by_id[identity.player_id] = identity
+        bucket = self.by_normalized.setdefault(identity.normalized_name, [])
+        bucket.append(identity)
+        if identity.normalized_name not in self.choices:
+            self.choices.append(identity.normalized_name)
+
     def resolve(
         self,
         name: str,

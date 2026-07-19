@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import requests
 from rapidfuzz.fuzz import WRatio
@@ -47,6 +46,105 @@ class TheOddsApiClient:
         if not key:
             raise RuntimeError(f"Set {env_name} or pass api_key to use The Odds API.")
         return key
+
+    def fetch_sports(self, *, all_sports: bool = False, env_name: str = "ODDS_API_KEY") -> list[dict[str, Any]]:
+        response = requests.get(
+            f"{self.base_url}/sports",
+            params={"apiKey": self._key(env_name), "all": str(all_sports).lower()},
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else []
+
+    def fetch_upcoming_odds(
+        self,
+        sport_key: str,
+        *,
+        regions: str = "us,uk,eu",
+        bookmakers: str | None = None,
+        env_name: str = "ODDS_API_KEY",
+    ) -> pd.DataFrame:
+        params = {
+            "apiKey": self._key(env_name),
+            "markets": "h2h",
+            "oddsFormat": "decimal",
+            "dateFormat": "iso",
+        }
+        # The Odds API treats `bookmakers` as an alternative to `regions`.
+        # Supplying only the requested bookmaker avoids spending quota on books
+        # that the dashboard will never display.
+        if bookmakers:
+            params["bookmakers"] = bookmakers
+        else:
+            params["regions"] = regions
+        response = requests.get(
+            f"{self.base_url}/sports/{sport_key}/odds",
+            params=params,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return self.normalize_upcoming_payload(response.json(), sport_key=sport_key)
+
+    def fetch_all_tennis_odds(
+        self,
+        *,
+        regions: str = "us,uk,eu",
+        bookmakers: str | None = None,
+        env_name: str = "ODDS_API_KEY",
+    ) -> pd.DataFrame:
+        sports = self.fetch_sports(env_name=env_name)
+        tennis_keys = [
+            str(item.get("key"))
+            for item in sports
+            if "tennis" in str(item.get("group", "")).casefold()
+            or str(item.get("key", "")).startswith("tennis_")
+        ]
+        frames = []
+        for sport_key in tennis_keys:
+            frame = self.fetch_upcoming_odds(
+                sport_key, regions=regions, bookmakers=bookmakers, env_name=env_name
+            )
+            if not frame.empty:
+                frames.append(frame)
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    @staticmethod
+    def normalize_upcoming_payload(payload: Any, *, sport_key: str) -> pd.DataFrame:
+        rows: list[dict[str, Any]] = []
+        events = payload if isinstance(payload, list) else []
+        snapshot_time = pd.Timestamp.now(tz="UTC").tz_convert(None)
+        for event in events:
+            home = event.get("home_team")
+            away = event.get("away_team")
+            if not home or not away:
+                continue
+            for book in event.get("bookmakers", []):
+                for market in book.get("markets", []):
+                    if market.get("key") != "h2h":
+                        continue
+                    prices = {outcome.get("name"): outcome.get("price") for outcome in market.get("outcomes", [])}
+                    if home not in prices or away not in prices:
+                        continue
+                    rows.append(
+                        {
+                            "provider_event_id": str(event.get("id")),
+                            "snapshot_time": snapshot_time,
+                            "commence_time": pd.to_datetime(event.get("commence_time"), utc=True, errors="coerce").tz_convert(None),
+                            "tour": "",
+                            "tournament": event.get("sport_title", sport_key),
+                            "sport_key": sport_key,
+                            "player1": str(home),
+                            "player2": str(away),
+                            "bookmaker": str(book.get("title") or book.get("key") or "unknown"),
+                            "bookmaker_key": str(book.get("key") or "unknown"),
+                            "decimal_odds1": float(prices[home]),
+                            "decimal_odds2": float(prices[away]),
+                            "source": "the_odds_api",
+                            "is_closing": False,
+                        }
+                    )
+        return pd.DataFrame(rows)
 
     def fetch_historical_snapshot(
         self,

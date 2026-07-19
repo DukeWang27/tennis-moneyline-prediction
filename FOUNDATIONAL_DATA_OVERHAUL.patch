@@ -1,0 +1,3202 @@
+--- a/FOUNDATIONAL_DATA_OVERHAUL.md
++++ b/FOUNDATIONAL_DATA_OVERHAUL.md
+@@ -0,0 +1,167 @@
++# Foundational Data Overhaul
++
++This overlay rebuilds the data layer around immutable API-Tennis player IDs while leaving the existing LightGBM estimator, calibration mathematics, Elo formulas, and feature definitions intact.
++
++## Architecture
++
++```text
++API-Tennis seven-day raw archive
++        |
++        v
++ID-first normalized results + identity.db
++        |
++        +--> alias review queue
++        +--> tournament surface/tier registry
++        |
++        v
++Sackmann/current processed matches + optional Tennis-Data odds
++        |
++        v
++canonical merge and duplicate removal
++        |
++        v
++strict chronological pre-match feature replay
++        |
++        v
++existing walk-forward LightGBM training
++        |
++        v
++segmented metrics + promotion gate
++```
++
++## New commands
++
++### Archive and normalize API-Tennis history
++
++```bash
++tennis-backfill-history \
++  --config config.yaml \
++  --start 2023-01-01 \
++  --end 2026-07-16
++```
++
++The downloader is resumable. Existing seven-day JSON files are skipped unless `--force` is supplied. Each raw response is atomically written beneath:
++
++```text
++data/raw/api_tennis/YYYY/MM/YYYY-MM-DD_YYYY-MM-DD.json
++```
++
++Useful modes:
++
++```bash
++# Download without parsing
++tennis-backfill-history --config config.yaml --download-only
++
++# Reparse the existing raw archive without new API calls
++tennis-backfill-history --config config.yaml --parse-only
++
++# Fetch DOB/nationality profiles gradually, subject to API quota
++tennis-backfill-history \
++  --config config.yaml \
++  --parse-only \
++  --hydrate-profiles \
++  --max-profiles 250
++```
++
++### Build and validate a candidate model
++
++```bash
++tennis-rebuild-candidate \
++  --config config.yaml \
++  --start 2023-01-01 \
++  --end 2026-07-16
++```
++
++Outputs are written to `outputs/candidate/` and do not replace production by default:
++
++```text
++trained_system_candidate.joblib
++predictions.parquet
++metrics.csv
++calibration_curves.csv
++promotion_gate.json
++assembly_report.json
++```
++
++Only after reviewing a PASS gate should promotion be considered:
++
++```bash
++tennis-rebuild-candidate \
++  --config config.yaml \
++  --start 2023-01-01 \
++  --end 2026-07-16 \
++  --promote-if-passed
++```
++
++## ID-first identity schema
++
++`data/identity.db` contains:
++
++- `players`: one row per API-Tennis `provider_player_id`
++- `player_aliases`: exact text aliases pointing to a provider ID
++- `source_player_ids`: Sackmann/Tennis-Data/API IDs linked to the canonical provider ID
++- `alias_review_queue`: unresolved or ambiguous fuzzy matches
++- `tournament_registry`: persistent tournament surface and tier metadata
++
++Model-facing IDs use the stable form `api_tennis:<provider_player_id>`.
++
++## Match-status behavior
++
++- Completed: normal chronological update.
++- Retirement: retained and down-weighted by the existing retirement policy.
++- Walkover/default/void: retained for audit, but receives zero state-update weight so it does not distort Elo, form, rest, H2H, or experience.
++- Unknown surface: retained; overall Elo/form/rest/H2H update normally, while surface Elo is skipped.
++
++## Leakage protection
++
++Every row receives a deterministic `chronology_ts`. The rebuild:
++
++1. Sorts all canonical matches by `chronology_ts`.
++2. Creates both players' features before the result is applied.
++3. Saves the pre-match row.
++4. Updates the state from the result.
++5. Advances to the next match.
++
++No old results are appended onto a newer production state.
++
++## Segmented validation
++
++The report separates:
++
++- ATP Main Tour
++- WTA Main Tour
++- ATP Challenger
++- ITF Men
++- ITF Women
++
++Metrics include match count, accuracy, Brier score, log loss, expected calibration error, calibration bins, and ROI where aligned historical odds exist.
++
++The promotion gate requires improved log loss and non-worse calibration for Challenger, ITF Men, and ITF Women, with a configurable minimum number of matches. Missing or undersized segments produce `INCONCLUSIVE`, never an automatic promotion.
++
++## Optional Tennis-Data odds
++
++Place locally downloaded CSV files in a directory such as:
++
++```text
++data/raw/tennis_data/
++```
++
++Then add to `config.yaml`:
++
++```yaml
++history:
++  tennis_data_directory: data/raw/tennis_data
++```
++
++The loader recognizes common historical moneyline columns and converts them into the project's existing odds snapshots for chronological alignment.
++
++## Streamlit identity review
++
++The Research navigation now includes `Alias Review Queue`. Ambiguous Polymarket or source names can be attached to a verified API-Tennis player ID without editing model state by hand.
++
++## Safety
++
++- Keep the current production artifact until the candidate gate passes.
++- Do not use `--force` during normal resume operations.
++- Do not promote on aggregate accuracy alone.
++- Keep this system in paper-trading mode until segment-specific calibration and ROI are established on a meaningful sample.
+--- a/config.example.yaml
++++ b/config.example.yaml
+@@ -83,3 +83,21 @@
+   min_edge: 0.03
+   kelly_multiplier: 0.25
+   max_kelly_fraction: 0.05
++
++history:
++  start_date: "2023-01-01"
++  raw_api_tennis_dir: data/raw/api_tennis
++  normalized_api_tennis_path: data/normalized/api_tennis_matches.parquet
++  unresolved_api_tennis_path: data/normalized/api_tennis_unresolved.csv
++  tennis_data_directory: null
++  tennis_data_snapshots_path: data/normalized/tennis_data_odds.parquet
++  identity_database_path: data/identity.db
++  merged_matches_path: data/processed/matches_full.parquet
++  chronological_features_path: data/processed/features_full.parquet
++  candidate_output_dir: outputs/candidate
++  fuzzy_match_threshold: 96.0
++  fuzzy_minimum_margin: 3.0
++  max_retries: 4
++  retry_backoff_seconds: 2.0
++  sleep_between_requests: 0.25
++  minimum_gate_segment_matches: 200
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -33,6 +33,8 @@
+ tennis-prepare-dashboard = "tennis_predictor.ui.prepare:main"
+ tennis-sync = "tennis_predictor.cli:sync_main"
+ tennis-rebuild-live = "tennis_predictor.cli:rebuild_live_main"
++tennis-backfill-history = "tennis_predictor.cli:backfill_history_main"
++tennis-rebuild-candidate = "tennis_predictor.cli:rebuild_candidate_main"
+ 
+ [tool.setuptools.packages.find]
+ where = ["src"]
+--- a/src/tennis_predictor/backtest/__init__.py
++++ b/src/tennis_predictor/backtest/__init__.py
+@@ -1,5 +1,5 @@
+ from .engine import WalkForwardBacktester
+-from .metrics import evaluate_predictions
++from .metrics import calibration_curve_table, evaluate_predictions, expected_calibration_error
+ from .report import print_summary
+ 
+-__all__ = ["WalkForwardBacktester", "evaluate_predictions", "print_summary"]
++__all__ = ["WalkForwardBacktester", "calibration_curve_table", "evaluate_predictions", "expected_calibration_error", "print_summary"]
+--- a/src/tennis_predictor/backtest/engine.py
++++ b/src/tennis_predictor/backtest/engine.py
+@@ -134,8 +134,9 @@
+     @staticmethod
+     def _prediction_frame(test: pd.DataFrame, probability: np.ndarray, fold: int, model: str) -> pd.DataFrame:
+         keep = [
+-            "match_id", "date", "tour", "tier", "surface", "tournament", "round",
+-            "player1", "player2", "player1_won", "retirement", "walkover",
++            "match_id", "date", "tour", "tier", "competition_segment", "surface",
++            "tournament", "round", "is_qualifying", "player1", "player2",
++            "player1_won", "retirement", "walkover", "defaulted",
+             "eligible_with_filters", "any_filter_flag", "dead_rubber", "already_qualified",
+             "fatigue_player1", "fatigue_player2", "pre_slam_rest_risk_player1",
+             "pre_slam_rest_risk_player2", "large_line_move", "market_p1_open",
+--- a/src/tennis_predictor/backtest/metrics.py
++++ b/src/tennis_predictor/backtest/metrics.py
+@@ -27,6 +27,18 @@
+ 
+ 
+ def _bet_metrics(frame: pd.DataFrame, bootstrap_samples: int, random_state: int) -> dict[str, float]:
++    if "bet_side" not in frame:
++        return {
++            "bets": 0,
++            "flat_roi": np.nan,
++            "flat_roi_ci_low": np.nan,
++            "flat_roi_ci_high": np.nan,
++            "kelly_roi": np.nan,
++            "kelly_roi_ci_low": np.nan,
++            "kelly_roi_ci_high": np.nan,
++            "mean_clv_probability": np.nan,
++            "mean_clv_price": np.nan,
++        }
+     placed = frame[frame["bet_side"].isin([1, 2])].copy()
+     if placed.empty:
+         return {
+@@ -66,9 +78,100 @@
+         "kelly_roi": kelly_roi,
+         "kelly_roi_ci_low": kelly_low,
+         "kelly_roi_ci_high": kelly_high,
+-        "mean_clv_probability": placed["clv_probability"].mean(),
+-        "mean_clv_price": placed["clv_price"].mean(),
++        "mean_clv_probability": placed.get("clv_probability", pd.Series(dtype=float)).mean(),
++        "mean_clv_price": placed.get("clv_price", pd.Series(dtype=float)).mean(),
+     }
++
++
++def expected_calibration_error(
++    actual: pd.Series | np.ndarray,
++    probability: pd.Series | np.ndarray,
++    *,
++    bins: int = 10,
++) -> float:
++    y = np.asarray(actual, dtype=float)
++    p = np.asarray(probability, dtype=float)
++    mask = np.isfinite(y) & np.isfinite(p)
++    y, p = y[mask], np.clip(p[mask], 0.0, 1.0)
++    if len(y) == 0:
++        return np.nan
++    edges = np.linspace(0.0, 1.0, int(bins) + 1)
++    indices = np.clip(np.digitize(p, edges[1:-1], right=False), 0, bins - 1)
++    ece = 0.0
++    for index in range(bins):
++        selected = indices == index
++        if not selected.any():
++            continue
++        ece += selected.mean() * abs(float(y[selected].mean()) - float(p[selected].mean()))
++    return float(ece)
++
++
++def _derive_competition_segment(frame: pd.DataFrame) -> pd.Series:
++    if "competition_segment" in frame:
++        existing = frame["competition_segment"].fillna("").astype(str)
++    else:
++        existing = pd.Series("", index=frame.index)
++    tour = frame.get("tour", pd.Series("", index=frame.index)).fillna("").astype(str).str.upper()
++    tier = frame.get("tier", pd.Series("", index=frame.index)).fillna("").astype(str).str.casefold()
++    result = existing.where(existing.ne(""), "OTHER")
++    result = result.mask(tour.eq("ATP") & tier.eq("challenger"), "ATP_CHALLENGER")
++    result = result.mask(tour.eq("ATP") & tier.eq("itf"), "ITF_MEN")
++    result = result.mask(tour.eq("WTA") & tier.eq("itf"), "ITF_WOMEN")
++    result = result.mask(tour.eq("ATP") & result.eq("OTHER"), "ATP_MAIN")
++    result = result.mask(tour.eq("WTA") & result.eq("OTHER"), "WTA_MAIN")
++    return result
++
++
++def calibration_curve_table(predictions: pd.DataFrame, *, bins: int = 10) -> pd.DataFrame:
++    if predictions is None or predictions.empty:
++        return pd.DataFrame()
++    frame = predictions.copy()
++    frame["competition_segment"] = _derive_competition_segment(frame)
++    edges = np.linspace(0.0, 1.0, int(bins) + 1)
++    rows: list[dict] = []
++    for model, model_group in frame.groupby("model", dropna=False):
++        views = {"all": model_group}
++        if "eligible_with_filters" in model_group:
++            views["filtered"] = model_group[model_group["eligible_with_filters"]]
++        for view_name, view in views.items():
++            groups = [("full", "all", view)]
++            groups.extend(
++                ("competition_segment", str(segment), group)
++                for segment, group in view.groupby("competition_segment", dropna=False)
++            )
++            for segment_type, segment, group in groups:
++                valid = group.dropna(subset=["actual", "probability"]).copy()
++                if valid.empty:
++                    continue
++                valid["bin"] = pd.cut(
++                    valid["probability"].clip(0.0, 1.0),
++                    bins=edges,
++                    labels=False,
++                    include_lowest=True,
++                    right=True,
++                )
++                for bin_index, bucket in valid.groupby("bin", dropna=True):
++                    if bucket.empty:
++                        continue
++                    index = int(bin_index)
++                    rows.append(
++                        {
++                            "filter_view": view_name,
++                            "model": str(model),
++                            "segment_type": segment_type,
++                            "segment": segment,
++                            "bin": index,
++                            "bin_low": float(edges[index]),
++                            "bin_high": float(edges[index + 1]),
++                            "matches": len(bucket),
++                            "mean_probability": float(bucket["probability"].mean()),
++                            "actual_win_rate": float(bucket["actual"].mean()),
++                            "calibration_gap": float(
++                                bucket["actual"].mean() - bucket["probability"].mean()
++                            ),
++                        }
++                    )
++    return pd.DataFrame(rows)
+ 
+ 
+ def evaluate_predictions(
+@@ -78,20 +181,21 @@
+     random_state: int = 27,
+ ) -> pd.DataFrame:
+     rows: list[dict] = []
+-    views = {
+-        "all": predictions,
+-        "filtered": predictions[predictions["eligible_with_filters"]],
+-    }
++    frame = predictions.copy()
++    frame["competition_segment"] = _derive_competition_segment(frame)
++    views = {"all": frame}
++    if "eligible_with_filters" in frame:
++        views["filtered"] = frame[frame["eligible_with_filters"]]
+     for view_name, view in views.items():
+         segments: list[tuple[str, str, pd.DataFrame]] = []
+-        # Every metric row is model-specific; mixing two probability rows for the
+-        # same match would make accuracy/calibration numbers uninterpretable.
+         for model, model_group in view.groupby("model", dropna=False):
+             segments.append(("full", str(model), model_group))
+             for tour, group in model_group.groupby("tour", dropna=False):
+                 segments.append(("tour", f"{model}|{tour}", group))
+             for tier, group in model_group.groupby("tier", dropna=False):
+                 segments.append(("tier", f"{model}|{tier}", group))
++            for segment, group in model_group.groupby("competition_segment", dropna=False):
++                segments.append(("competition_segment", f"{model}|{segment}", group))
+ 
+         for segment_type, segment_value, group in segments:
+             valid = group.dropna(subset=["actual", "probability"])
+@@ -107,6 +211,7 @@
+                 "accuracy": accuracy_score(y, p >= 0.5),
+                 "brier": brier_score_loss(y, p),
+                 "log_loss": log_loss(y, p, labels=[0, 1]),
++                "ece": expected_calibration_error(y, p),
+                 "mean_probability": p.mean(),
+                 "actual_win_rate": y.mean(),
+             }
+--- a/src/tennis_predictor/backtest/report.py
++++ b/src/tennis_predictor/backtest/report.py
+@@ -15,6 +15,7 @@
+         "accuracy",
+         "brier",
+         "log_loss",
++        "ece",
+         "bets",
+         "flat_roi",
+         "flat_roi_ci_low",
+--- a/src/tennis_predictor/cli.py
++++ b/src/tennis_predictor/cli.py
+@@ -158,3 +158,126 @@
+         "unresolved": report.unresolved,
+         "settled": report.settled,
+     }, indent=2))
++
++
++def backfill_history_main(argv=None) -> None:
++    """Download raw API-Tennis history, then normalize it into ID-first parquet."""
++    from tennis_predictor.data import (
++        ApiTennisHistoryParser,
++        ApiTennisProfileHydrator,
++        ApiTennisRawDownloader,
++    )
++    from tennis_predictor.storage import IdentityStore
++
++    parser = argparse.ArgumentParser(
++        description="Archive and normalize API-Tennis history in seven-day windows."
++    )
++    parser.add_argument("--config", default="config.yaml")
++    parser.add_argument("--start", default=None)
++    parser.add_argument("--end", default=None)
++    parser.add_argument("--force", action="store_true")
++    parser.add_argument("--download-only", action="store_true")
++    parser.add_argument("--parse-only", action="store_true")
++    parser.add_argument("--continue-on-error", action="store_true")
++    parser.add_argument("--hydrate-profiles", action="store_true")
++    parser.add_argument("--max-profiles", type=int, default=None)
++    args = parser.parse_args(argv)
++    if args.download_only and args.parse_only:
++        parser.error("--download-only and --parse-only cannot be used together")
++
++    config = _config(args.config)
++    history = config.history
++    start = args.start or history.start_date
++    end = args.end or pd.Timestamp.today().date().isoformat()
++    output: dict[str, object] = {"start_date": start, "end_date": end}
++
++    if not args.parse_only:
++        downloader = ApiTennisRawDownloader(
++            api_key_env=config.live_data.api_tennis_key_env,
++            timeout_seconds=config.data.request_timeout_seconds,
++            max_retries=history.max_retries,
++            retry_backoff_seconds=history.retry_backoff_seconds,
++            sleep_between_requests=history.sleep_between_requests,
++        )
++        download_report = downloader.download(
++            start_date=start,
++            end_date=end,
++            raw_root=history.raw_api_tennis_dir,
++            timezone_name=config.live_data.timezone,
++            force=args.force,
++            continue_on_error=args.continue_on_error,
++        )
++        output["download"] = download_report.to_dict()
++
++    if not args.download_only:
++        identity_store = IdentityStore(history.identity_database_path)
++        parser_service = ApiTennisHistoryParser(identity_store)
++        matches, unresolved, parse_report = parser_service.parse_archive(
++            history.raw_api_tennis_dir
++        )
++        parser_service.save(
++            matches,
++            unresolved,
++            normalized_path=history.normalized_api_tennis_path,
++            unresolved_path=history.unresolved_api_tennis_path,
++        )
++        output["parse"] = parse_report.to_dict()
++        output["normalized_path"] = history.normalized_api_tennis_path
++        output["unresolved_path"] = history.unresolved_api_tennis_path
++        output["identity_database_path"] = history.identity_database_path
++
++        if args.hydrate_profiles and not matches.empty:
++            player_ids = pd.concat(
++                [matches["player1_provider_id"], matches["player2_provider_id"]],
++                ignore_index=True,
++            ).dropna().astype(int)
++            hydrated = ApiTennisProfileHydrator(
++                identity_store,
++                raw_root=history.raw_api_tennis_dir,
++                api_key_env=config.live_data.api_tennis_key_env,
++                timeout_seconds=config.data.request_timeout_seconds,
++            ).hydrate(player_ids, max_profiles=args.max_profiles)
++            output["hydrated_profiles"] = hydrated
++
++    print(json.dumps(output, indent=2))
++
++
++def rebuild_candidate_main(argv=None) -> None:
++    """Build, validate, and optionally promote an ID-first candidate model."""
++    from tennis_predictor.services import build_candidate_model
++
++    parser = argparse.ArgumentParser(
++        description="Merge canonical sources, replay chronologically, and train a candidate model."
++    )
++    parser.add_argument("--config", default="config.yaml")
++    parser.add_argument("--api-matches", default=None)
++    parser.add_argument("--existing-matches", default=None)
++    parser.add_argument("--start", default=None)
++    parser.add_argument("--end", default=None)
++    parser.add_argument("--output-dir", default=None)
++    parser.add_argument(
++        "--production-predictions",
++        default="outputs/backtest/predictions.parquet",
++    )
++    parser.add_argument(
++        "--production-model",
++        default="outputs/backtest/trained_system.joblib",
++    )
++    parser.add_argument("--promote-if-passed", action="store_true")
++    args = parser.parse_args(argv)
++
++    config = _config(args.config)
++    history = config.history
++    report = build_candidate_model(
++        config,
++        api_matches_path=args.api_matches or history.normalized_api_tennis_path,
++        existing_matches_path=args.existing_matches or config.data.processed_path,
++        start_date=args.start or history.start_date,
++        end_date=args.end,
++        output_dir=args.output_dir or history.candidate_output_dir,
++        identity_database_path=history.identity_database_path,
++        production_predictions_path=args.production_predictions,
++        production_model_path=args.production_model,
++        promote_if_passed=args.promote_if_passed,
++    )
++    print(json.dumps(report.to_dict(), indent=2))
+--- a/src/tennis_predictor/config.py
++++ b/src/tennis_predictor/config.py
+@@ -108,6 +108,27 @@
+ 
+ 
+ @dataclass(slots=True)
++class HistoricalDataConfig:
++    start_date: str = "2023-01-01"
++    raw_api_tennis_dir: str = "data/raw/api_tennis"
++    normalized_api_tennis_path: str = "data/normalized/api_tennis_matches.parquet"
++    unresolved_api_tennis_path: str = "data/normalized/api_tennis_unresolved.csv"
++    tennis_data_directory: str | None = None
++    tennis_data_snapshots_path: str = "data/normalized/tennis_data_odds.parquet"
++    identity_database_path: str = "data/identity.db"
++    merged_matches_path: str = "data/processed/matches_full.parquet"
++    chronological_features_path: str = "data/processed/features_full.parquet"
++    candidate_output_dir: str = "outputs/candidate"
++    fuzzy_match_threshold: float = 96.0
++    fuzzy_minimum_margin: float = 3.0
++    max_retries: int = 4
++    retry_backoff_seconds: float = 2.0
++    sleep_between_requests: float = 0.25
++    minimum_gate_segment_matches: int = 200
++
++
++
++@dataclass(slots=True)
+ class PaperTradingConfig:
+     database_path: str = "data/paper_trading.db"
+     default_stake: float = 5.0
+@@ -125,6 +146,7 @@
+     backtest: BacktestConfig = field(default_factory=BacktestConfig)
+     odds: OddsConfig = field(default_factory=OddsConfig)
+     live_data: LiveDataConfig = field(default_factory=LiveDataConfig)
++    history: HistoricalDataConfig = field(default_factory=HistoricalDataConfig)
+     paper_trading: PaperTradingConfig = field(default_factory=PaperTradingConfig)
+ 
+     @classmethod
+@@ -139,6 +161,7 @@
+             backtest=BacktestConfig(**raw.get("backtest", {})),
+             odds=OddsConfig(**raw.get("odds", {})),
+             live_data=LiveDataConfig(**raw.get("live_data", {})),
++            history=HistoricalDataConfig(**raw.get("history", {})),
+             paper_trading=PaperTradingConfig(**raw.get("paper_trading", {})),
+         )
+ 
+@@ -149,4 +172,10 @@
+         Path(self.live_data.tournament_registry_path).parent.mkdir(parents=True, exist_ok=True)
+         Path(self.live_data.player_aliases_path).parent.mkdir(parents=True, exist_ok=True)
+         Path(self.live_data.unresolved_fixtures_path).parent.mkdir(parents=True, exist_ok=True)
++        Path(self.history.raw_api_tennis_dir).mkdir(parents=True, exist_ok=True)
++        Path(self.history.normalized_api_tennis_path).parent.mkdir(parents=True, exist_ok=True)
++        Path(self.history.tennis_data_snapshots_path).parent.mkdir(parents=True, exist_ok=True)
++        Path(self.history.identity_database_path).parent.mkdir(parents=True, exist_ok=True)
++        Path(self.history.merged_matches_path).parent.mkdir(parents=True, exist_ok=True)
++        Path(self.history.candidate_output_dir).mkdir(parents=True, exist_ok=True)
+         Path(self.paper_trading.database_path).parent.mkdir(parents=True, exist_ok=True)
+--- a/src/tennis_predictor/data/__init__.py
++++ b/src/tennis_predictor/data/__init__.py
+@@ -1,3 +1,12 @@
++from .historical_backfill import (
++    ApiTennisHistoryParser,
++    ApiTennisProfileHydrator,
++    ApiTennisRawDownloader,
++    HistoricalDownloadReport,
++    HistoricalParseReport,
++    classify_event,
++    iter_seven_day_windows,
++)
+ from .api_tennis import (
+     ApiTennisClient,
+     ProviderPlayerResolver,
+@@ -8,8 +17,18 @@
+ from .names import NameResolver, normalize_name
+ from .odds import OddsAligner, TheOddsApiClient, load_normalized_snapshots
+ from .sackmann import SackmannLoader
++from .tennis_data import TennisDataLoader, TennisDataLoadReport
+ 
+ __all__ = [
++    "TennisDataLoadReport",
++    "TennisDataLoader",
++    "iter_seven_day_windows",
++    "classify_event",
++    "HistoricalParseReport",
++    "HistoricalDownloadReport",
++    "ApiTennisRawDownloader",
++    "ApiTennisProfileHydrator",
++    "ApiTennisHistoryParser",
+     "ApiTennisClient",
+     "ProviderPlayerResolver",
+     "TournamentRegistry",
+--- a/src/tennis_predictor/data/historical_backfill.py
++++ b/src/tennis_predictor/data/historical_backfill.py
+@@ -0,0 +1,644 @@
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++import time
++from dataclasses import asdict, dataclass
++from datetime import date
++from pathlib import Path
++from typing import Any, Iterable, Iterator
++
++import numpy as np
++import pandas as pd
++import requests
++
++from tennis_predictor.data.names import normalize_name
++from tennis_predictor.storage.identity_store import IdentityStore
++
++
++_VALID_SURFACES = {"Hard", "Clay", "Grass", "Carpet"}
++_WINNER_FIRST = {"first player", "first", "1"}
++_WINNER_SECOND = {"second player", "second", "2"}
++
++
++def _truthy(value: object) -> bool:
++    return str(value or "").casefold().strip() in {"1", "true", "yes", "y"}
++
++
++def _stable_flip(value: str) -> bool:
++    return bool(hashlib.blake2b(value.encode("utf-8"), digest_size=1).digest()[0] % 2)
++
++
++def _normalize_status(value: object) -> str:
++    return normalize_name(str(value or ""))
++
++
++def _surface(value: object) -> str | None:
++    text = str(value or "").strip().title()
++    return text if text in _VALID_SURFACES else None
++
++
++def _score_text(item: dict[str, Any]) -> str:
++    scores = item.get("scores") or []
++    parts: list[str] = []
++    if isinstance(scores, list):
++        for score in scores:
++            if not isinstance(score, dict):
++                continue
++            left = score.get("score_first")
++            right = score.get("score_second")
++            if left is not None and right is not None:
++                parts.append(f"{left}-{right}")
++    return " ".join(parts) or str(item.get("event_final_result") or "")
++
++
++def _clean_round(value: object) -> str:
++    text = normalize_name(str(value or ""))
++    mappings = [
++        ("qualification final", "QFQ"),
++        ("qualification 3", "Q3"),
++        ("qualification 2", "Q2"),
++        ("qualification 1", "Q1"),
++        ("round of 128", "R128"),
++        ("round of 64", "R64"),
++        ("round of 32", "R32"),
++        ("round of 16", "R16"),
++        ("1 128 finals", "R128"),
++        ("1 64 finals", "R64"),
++        ("1 32 finals", "R32"),
++        ("1 16 finals", "R16"),
++        ("quarter", "QF"),
++        ("semi", "SF"),
++        ("final", "F"),
++        ("round robin", "RR"),
++    ]
++    for needle, code in mappings:
++        if needle in text:
++            return code
++    return str(value or "")
++
++
++def classify_event(event_type: object, tournament_name: object) -> tuple[str, str, str] | None:
++    """Return (tour, tier, competition_segment) for supported singles events."""
++    event = normalize_name(str(event_type or ""))
++    tournament = normalize_name(str(tournament_name or ""))
++    if not event or any(token in event for token in ("doubles", "boys", "girls", "mixed")):
++        return None
++    if "exhibition" in event:
++        return None
++
++    if "itf men" in event and "singles" in event:
++        return "ATP", "ITF", "ITF_MEN"
++    if "itf women" in event and "singles" in event:
++        return "WTA", "ITF", "ITF_WOMEN"
++    if "challenger men" in event and "singles" in event:
++        return "ATP", "Challenger", "ATP_CHALLENGER"
++    if "challenger women" in event and "singles" in event:
++        return "WTA", "125", "WTA_MAIN"
++    if "atp" in event and "singles" in event:
++        if any(name in tournament for name in ("australian open", "roland garros", "french open", "wimbledon", "us open")):
++            tier = "Slam"
++        elif "masters" in tournament:
++            tier = "Masters"
++        else:
++            tier = "Other"
++        return "ATP", tier, "ATP_MAIN"
++    if "wta" in event and "singles" in event:
++        if any(name in tournament for name in ("australian open", "roland garros", "french open", "wimbledon", "us open")):
++            tier = "Slam"
++        else:
++            tier = "Other"
++        return "WTA", tier, "WTA_MAIN"
++    return None
++
++
++def iter_seven_day_windows(start: object, end: object) -> Iterator[tuple[pd.Timestamp, pd.Timestamp]]:
++    cursor = pd.Timestamp(start).normalize()
++    stop = pd.Timestamp(end).normalize()
++    if stop < cursor:
++        raise ValueError("end date must be on or after start date")
++    while cursor <= stop:
++        window_end = min(cursor + pd.Timedelta(days=6), stop)
++        yield cursor, window_end
++        cursor = window_end + pd.Timedelta(days=1)
++
++
++def raw_window_path(root: str | Path, start: pd.Timestamp, end: pd.Timestamp) -> Path:
++    directory = Path(root) / f"{start.year:04d}" / f"{start.month:02d}"
++    return directory / f"{start.date().isoformat()}_{end.date().isoformat()}.json"
++
++
++@dataclass(slots=True)
++class HistoricalDownloadReport:
++    start_date: str
++    end_date: str
++    requested_windows: int = 0
++    downloaded_windows: int = 0
++    skipped_windows: int = 0
++    failed_windows: int = 0
++    raw_files: list[str] | None = None
++
++    def to_dict(self) -> dict[str, Any]:
++        data = asdict(self)
++        data["raw_files"] = self.raw_files or []
++        return data
++
++
++class ApiTennisRawDownloader:
++    """Download API-Tennis fixtures and archive each raw response before parsing."""
++
++    def __init__(
++        self,
++        *,
++        api_key: str | None = None,
++        api_key_env: str = "API_TENNIS_KEY",
++        base_url: str = "https://api.api-tennis.com/tennis/",
++        timeout_seconds: int = 45,
++        max_retries: int = 4,
++        retry_backoff_seconds: float = 2.0,
++        sleep_between_requests: float = 0.25,
++        session: requests.Session | None = None,
++    ):
++        self.api_key = api_key
++        self.api_key_env = api_key_env
++        self.base_url = base_url
++        self.timeout_seconds = int(timeout_seconds)
++        self.max_retries = int(max_retries)
++        self.retry_backoff_seconds = float(retry_backoff_seconds)
++        self.sleep_between_requests = float(sleep_between_requests)
++        self.session = session or requests.Session()
++
++    def _key(self) -> str:
++        key = self.api_key or os.getenv(self.api_key_env)
++        if not key:
++            raise RuntimeError(f"Set {self.api_key_env} before running the historical backfill.")
++        return key
++
++    @staticmethod
++    def _atomic_json_write(path: Path, payload: Any) -> None:
++        path.parent.mkdir(parents=True, exist_ok=True)
++        temporary = path.with_suffix(path.suffix + ".tmp")
++        with temporary.open("w", encoding="utf-8") as handle:
++            json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
++            handle.flush()
++            os.fsync(handle.fileno())
++        temporary.replace(path)
++
++    def _fetch_window(
++        self,
++        start: pd.Timestamp,
++        end: pd.Timestamp,
++        *,
++        timezone_name: str,
++    ) -> dict[str, Any]:
++        params = {
++            "method": "get_fixtures",
++            "APIkey": self._key(),
++            "date_start": start.date().isoformat(),
++            "date_stop": end.date().isoformat(),
++            "timezone": timezone_name,
++        }
++        last_error: Exception | None = None
++        for attempt in range(self.max_retries + 1):
++            try:
++                response = self.session.get(
++                    self.base_url,
++                    params=params,
++                    timeout=self.timeout_seconds,
++                )
++                response.raise_for_status()
++                payload = response.json()
++                if not isinstance(payload, dict):
++                    raise RuntimeError("API-Tennis returned a non-object JSON payload")
++                return payload
++            except (requests.RequestException, ValueError, RuntimeError) as exc:
++                last_error = exc
++                if attempt >= self.max_retries:
++                    break
++                time.sleep(self.retry_backoff_seconds * (2**attempt))
++        raise RuntimeError(
++            f"API-Tennis failed for {start.date()} through {end.date()}: {last_error}"
++        ) from last_error
++
++    def download(
++        self,
++        *,
++        start_date: object,
++        end_date: object | None,
++        raw_root: str | Path,
++        timezone_name: str = "America/New_York",
++        force: bool = False,
++        continue_on_error: bool = False,
++    ) -> HistoricalDownloadReport:
++        start = pd.Timestamp(start_date).normalize()
++        end = pd.Timestamp(end_date or date.today()).normalize()
++        report = HistoricalDownloadReport(
++            start_date=start.date().isoformat(),
++            end_date=end.date().isoformat(),
++            raw_files=[],
++        )
++        for window_start, window_end in iter_seven_day_windows(start, end):
++            report.requested_windows += 1
++            output = raw_window_path(raw_root, window_start, window_end)
++            if output.exists() and not force:
++                report.skipped_windows += 1
++                report.raw_files.append(str(output))
++                continue
++            try:
++                payload = self._fetch_window(
++                    window_start,
++                    window_end,
++                    timezone_name=timezone_name,
++                )
++                # Archive the exact response before validating or parsing it.
++                self._atomic_json_write(output, payload)
++                report.raw_files.append(str(output))
++                if int(payload.get("success", 0)) != 1:
++                    raise RuntimeError(f"API-Tennis error payload archived at {output}: {payload}")
++                report.downloaded_windows += 1
++            except Exception:
++                report.failed_windows += 1
++                if not continue_on_error:
++                    raise
++            if self.sleep_between_requests > 0:
++                time.sleep(self.sleep_between_requests)
++        return report
++
++
++@dataclass(slots=True)
++class HistoricalParseReport:
++    raw_files: int
++    raw_events: int
++    normalized_matches: int
++    unresolved_rows: int
++    skipped_non_singles: int
++    duplicate_matches: int
++
++    def to_dict(self) -> dict[str, int]:
++        return asdict(self)
++
++
++class ApiTennisHistoryParser:
++    def __init__(self, identity_store: IdentityStore):
++        self.identity_store = identity_store
++
++    @staticmethod
++    def raw_files(raw_root: str | Path) -> list[Path]:
++        return sorted(Path(raw_root).glob("**/*.json"))
++
++    @staticmethod
++    def load_payload(path: str | Path) -> dict[str, Any]:
++        with Path(path).open("r", encoding="utf-8") as handle:
++            payload = json.load(handle)
++        if not isinstance(payload, dict):
++            raise ValueError(f"Raw API-Tennis file is not a JSON object: {path}")
++        return payload
++
++    def _player(
++        self,
++        *,
++        provider_id: object,
++        name: str,
++        player_tour: str,
++    ) -> tuple[int, str]:
++        if provider_id is None or not str(provider_id).strip().isdigit():
++            raise ValueError("missing numeric API-Tennis player key")
++        player_id = int(str(provider_id).strip())
++        self.identity_store.upsert_player(
++            player_id,
++            canonical_name=name,
++            tour=player_tour,
++            aliases=[name],
++        )
++        self.identity_store.link_source_id(
++            source="api_tennis",
++            source_player_id=player_id,
++            provider_player_id=player_id,
++        )
++        return player_id, self.identity_store.model_player_id(player_id)
++
++    @staticmethod
++    def _status_flags(item: dict[str, Any]) -> dict[str, bool]:
++        status = _normalize_status(item.get("event_status"))
++        final_result = _normalize_status(item.get("event_final_result"))
++        retirement = "retir" in status or "retir" in final_result or status == "ret"
++        walkover = "walkover" in status or status in {"wo", "w o"} or "walkover" in final_result
++        defaulted = "default" in status or "default" in final_result
++        cancelled = status in {"cancelled", "canceled"}
++        abandoned = "abandon" in status
++        return {
++            "retirement": retirement,
++            "walkover": walkover,
++            "defaulted": defaulted,
++            "cancelled": cancelled,
++            "abandoned": abandoned,
++            "void": cancelled or abandoned,
++        }
++
++    def parse_item(self, item: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
++        tournament = str(item.get("tournament_name") or "Unknown").strip()
++        classification = classify_event(item.get("event_type_type"), tournament)
++        if classification is None:
++            return None, "unsupported or non-singles event"
++        tour, tier, segment = classification
++        identity_tour = "ITF_M" if segment == "ITF_MEN" else "ITF_W" if segment == "ITF_WOMEN" else tour
++
++        event_key = str(item.get("event_key") or "").strip()
++        if not event_key:
++            return None, "missing event_key"
++        first_name = str(item.get("event_first_player") or "").strip()
++        second_name = str(item.get("event_second_player") or "").strip()
++        if not first_name or not second_name:
++            return None, "missing player name"
++
++        winner = _normalize_status(item.get("event_winner"))
++        if winner in _WINNER_FIRST:
++            first_won = 1.0
++        elif winner in _WINNER_SECOND:
++            first_won = 0.0
++        else:
++            return None, "completed/trainable fixture has no winner"
++
++        event_date = pd.to_datetime(item.get("event_date"), errors="coerce")
++        if pd.isna(event_date):
++            return None, "invalid event_date"
++        event_time = str(item.get("event_time") or "00:00").strip() or "00:00"
++        chronology = pd.to_datetime(
++            f"{pd.Timestamp(event_date).date().isoformat()} {event_time}",
++            errors="coerce",
++        )
++        if pd.isna(chronology):
++            chronology = pd.Timestamp(event_date).normalize()
++
++        try:
++            first_provider_id, first_model_id = self._player(
++                provider_id=item.get("first_player_key"),
++                name=first_name,
++                player_tour=identity_tour,
++            )
++            second_provider_id, second_model_id = self._player(
++                provider_id=item.get("second_player_key"),
++                name=second_name,
++                player_tour=identity_tour,
++            )
++        except ValueError as exc:
++            return None, str(exc)
++
++        tournament_id = str(item.get("tournament_key") or "").strip()
++        explicit_surface = (
++            _surface(item.get("event_surface"))
++            or _surface(item.get("surface"))
++            or _surface(item.get("tournament_surface"))
++        )
++        remembered = self.identity_store.resolve_tournament(
++            provider="api_tennis",
++            provider_tournament_id=tournament_id,
++            tournament_name=tournament,
++            tour=tour,
++        )
++        surface = explicit_surface or (remembered or {}).get("surface") or "Unknown"
++        resolved_tier = (remembered or {}).get("tier") or tier
++        self.identity_store.upsert_tournament(
++            provider="api_tennis",
++            provider_tournament_id=tournament_id or normalize_name(tournament),
++            canonical_name=tournament,
++            tour=tour,
++            surface=surface,
++            tier=resolved_tier,
++        )
++
++        flags = self._status_flags(item)
++        is_qualifying = _truthy(item.get("event_qualification")) or "qualif" in normalize_name(
++            str(item.get("tournament_round") or "")
++        )
++
++        match_id = f"api_tennis:{event_key}"
++        player1_name, player2_name = first_name, second_name
++        player1_provider_id, player2_provider_id = first_provider_id, second_provider_id
++        player1_id, player2_id = first_model_id, second_model_id
++        player1_won = first_won
++        if _stable_flip(match_id):
++            player1_name, player2_name = player2_name, player1_name
++            player1_provider_id, player2_provider_id = player2_provider_id, player1_provider_id
++            player1_id, player2_id = player2_id, player1_id
++            player1_won = 1.0 - first_won
++
++        row = {
++            "fixture_id": match_id,
++            "match_id": match_id,
++            "provider_event_id": event_key,
++            "source": "api_tennis",
++            "source_file": "api_tennis_archive",
++            "tour": tour,
++            "competition_segment": segment,
++            "date": pd.Timestamp(event_date).normalize(),
++            "event_date": pd.Timestamp(event_date).normalize(),
++            "commence_time": pd.Timestamp(chronology),
++            "chronology_ts": pd.Timestamp(chronology),
++            "date_is_estimated": False,
++            "tournament": tournament,
++            "tournament_key": tournament_id,
++            "tournament_level_raw": str(item.get("event_type_type") or ""),
++            "tier": resolved_tier,
++            "round": _clean_round(item.get("tournament_round")),
++            "is_qualifying": bool(is_qualifying),
++            "surface": surface if surface in _VALID_SURFACES else "Unknown",
++            "surface_known": surface in _VALID_SURFACES,
++            "match_num": int(event_key) if event_key.isdigit() else 0,
++            "player1": player1_name,
++            "player2": player2_name,
++            "player1_provider_id": int(player1_provider_id),
++            "player2_provider_id": int(player2_provider_id),
++            "player1_id": player1_id,
++            "player2_id": player2_id,
++            "player1_age": np.nan,
++            "player2_age": np.nan,
++            "player1_rank": np.nan,
++            "player2_rank": np.nan,
++            "winner": player1_name if player1_won == 1 else player2_name,
++            "winner_id": player1_id if player1_won == 1 else player2_id,
++            "loser_id": player2_id if player1_won == 1 else player1_id,
++            "player1_won": float(player1_won),
++            "score": _score_text(item),
++            "event_status": str(item.get("event_status") or ""),
++            **flags,
++            "incomplete_match": bool(
++                flags["retirement"] or flags["walkover"] or flags["defaulted"] or flags["void"]
++            ),
++            "game_form_eligible": not bool(
++                flags["retirement"] or flags["walkover"] or flags["defaulted"] or flags["void"]
++            ),
++            "retiring_player_id": (
++                player2_id if player1_won == 1 else player1_id
++            ) if flags["retirement"] else pd.NA,
++            "best_of": np.nan,
++        }
++        return row, None
++
++    def parse_archive(
++        self,
++        raw_root: str | Path,
++    ) -> tuple[pd.DataFrame, pd.DataFrame, HistoricalParseReport]:
++        rows: list[dict[str, Any]] = []
++        unresolved: list[dict[str, Any]] = []
++        raw_events = 0
++        skipped_non_singles = 0
++        files = self.raw_files(raw_root)
++        for path in files:
++            payload = self.load_payload(path)
++            if int(payload.get("success", 0)) != 1:
++                unresolved.append(
++                    {
++                        "raw_file": str(path),
++                        "unresolved_reason": "archived API error payload",
++                        "payload": json.dumps(payload, default=str),
++                    }
++                )
++                continue
++            result = payload.get("result", [])
++            if not isinstance(result, list):
++                unresolved.append(
++                    {
++                        "raw_file": str(path),
++                        "unresolved_reason": "result is not a list",
++                    }
++                )
++                continue
++            for item in result:
++                if not isinstance(item, dict):
++                    continue
++                raw_events += 1
++                row, reason = self.parse_item(item)
++                if row is None:
++                    if reason == "unsupported or non-singles event":
++                        skipped_non_singles += 1
++                    else:
++                        unresolved.append(
++                            {
++                                "raw_file": str(path),
++                                "event_key": item.get("event_key"),
++                                "event_date": item.get("event_date"),
++                                "event_type_type": item.get("event_type_type"),
++                                "tournament_name": item.get("tournament_name"),
++                                "event_first_player": item.get("event_first_player"),
++                                "event_second_player": item.get("event_second_player"),
++                                "unresolved_reason": reason,
++                            }
++                        )
++                    continue
++                row["raw_file"] = str(path)
++                rows.append(row)
++
++        normalized = pd.DataFrame(rows)
++        duplicate_matches = 0
++        if not normalized.empty:
++            before = len(normalized)
++            normalized = (
++                normalized.sort_values(["chronology_ts", "match_id"])
++                .drop_duplicates("match_id", keep="last")
++                .reset_index(drop=True)
++            )
++            duplicate_matches = before - len(normalized)
++        unresolved_frame = pd.DataFrame(unresolved)
++        report = HistoricalParseReport(
++            raw_files=len(files),
++            raw_events=raw_events,
++            normalized_matches=len(normalized),
++            unresolved_rows=len(unresolved_frame),
++            skipped_non_singles=skipped_non_singles,
++            duplicate_matches=duplicate_matches,
++        )
++        return normalized, unresolved_frame, report
++
++    @staticmethod
++    def save(
++        matches: pd.DataFrame,
++        unresolved: pd.DataFrame,
++        *,
++        normalized_path: str | Path,
++        unresolved_path: str | Path,
++    ) -> None:
++        normalized_output = Path(normalized_path)
++        unresolved_output = Path(unresolved_path)
++        normalized_output.parent.mkdir(parents=True, exist_ok=True)
++        unresolved_output.parent.mkdir(parents=True, exist_ok=True)
++        matches.to_parquet(normalized_output, index=False)
++        unresolved.to_csv(unresolved_output, index=False)
++
++
++class ApiTennisProfileHydrator:
++    """Optional quota-aware player-profile hydration for DOB/nationality fields."""
++
++    def __init__(
++        self,
++        identity_store: IdentityStore,
++        *,
++        raw_root: str | Path,
++        api_key: str | None = None,
++        api_key_env: str = "API_TENNIS_KEY",
++        base_url: str = "https://api.api-tennis.com/tennis/",
++        timeout_seconds: int = 45,
++    ):
++        self.identity_store = identity_store
++        self.raw_root = Path(raw_root) / "players"
++        self.api_key = api_key
++        self.api_key_env = api_key_env
++        self.base_url = base_url
++        self.timeout_seconds = int(timeout_seconds)
++
++    def _key(self) -> str:
++        key = self.api_key or os.getenv(self.api_key_env)
++        if not key:
++            raise RuntimeError(f"Set {self.api_key_env} before hydrating player profiles.")
++        return key
++
++    def hydrate(self, player_ids: Iterable[int], *, max_profiles: int | None = None) -> int:
++        count = 0
++        for player_id in sorted({int(value) for value in player_ids}):
++            if max_profiles is not None and count >= int(max_profiles):
++                break
++            output = self.raw_root / f"{player_id}.json"
++            if output.exists():
++                with output.open("r", encoding="utf-8") as handle:
++                    payload = json.load(handle)
++            else:
++                response = requests.get(
++                    self.base_url,
++                    params={
++                        "method": "get_players",
++                        "APIkey": self._key(),
++                        "player_key": player_id,
++                    },
++                    timeout=self.timeout_seconds,
++                )
++                response.raise_for_status()
++                payload = response.json()
++                ApiTennisRawDownloader._atomic_json_write(output, payload)
++            result = payload.get("result", []) if isinstance(payload, dict) else []
++            if not isinstance(result, list) or not result:
++                continue
++            profile = result[0]
++            name = str(profile.get("player_name") or "").strip()
++            if not name:
++                continue
++            existing = self.identity_store.resolve_source_id(
++                source="api_tennis", source_player_id=player_id
++            )
++            tour = "" if existing.provider_player_id is None else ""
++            # Upsert retains the previously known tour when this call provides blank.
++            self.identity_store.upsert_player(
++                player_id,
++                canonical_name=name,
++                tour=tour,
++                dob=str(profile.get("player_bday") or "") or None,
++                nationality=str(profile.get("player_country") or "") or None,
++                aliases=[name],
++            )
++            self.identity_store.link_source_id(
++                source="api_tennis",
++                source_player_id=player_id,
++                provider_player_id=player_id,
++            )
++            count += 1
++        return count
+--- a/src/tennis_predictor/data/tennis_data.py
++++ b/src/tennis_predictor/data/tennis_data.py
+@@ -0,0 +1,126 @@
++from __future__ import annotations
++
++from dataclasses import dataclass
++from pathlib import Path
++
++import numpy as np
++import pandas as pd
++
++
++_ODDS_PAIRS = {
++    "bet365": ("B365W", "B365L"),
++    "pinnacle": ("PSW", "PSL"),
++    "market_max": ("MaxW", "MaxL"),
++    "market_average": ("AvgW", "AvgL"),
++    "centrebet": ("CBW", "CBL"),
++    "expekt": ("EXW", "EXL"),
++    "ladbrokes": ("LBW", "LBL"),
++    "stan_james": ("SJW", "SJL"),
++    "unibet": ("UBW", "UBL"),
++}
++
++
++@dataclass(slots=True)
++class TennisDataLoadReport:
++    files: int
++    source_rows: int
++    odds_rows: int
++    skipped_files: int
++
++
++class TennisDataLoader:
++    """Normalize local Tennis-Data CSV files into the existing odds-snapshot schema."""
++
++    def __init__(self, directory: str | Path):
++        self.directory = Path(directory)
++
++    @staticmethod
++    def _read(path: Path) -> pd.DataFrame:
++        errors: list[Exception] = []
++        for encoding in ("utf-8", "latin-1"):
++            try:
++                return pd.read_csv(path, encoding=encoding)
++            except Exception as exc:  # pragma: no cover - only used for malformed vendor files
++                errors.append(exc)
++        raise RuntimeError(f"Could not read Tennis-Data CSV {path}: {errors[-1]}")
++
++    @staticmethod
++    def _tour(frame: pd.DataFrame, path: Path) -> pd.Series:
++        if "Tour" in frame:
++            return frame["Tour"].fillna("").astype(str).str.upper()
++        filename = path.name.casefold()
++        if "wta" in filename:
++            return pd.Series("WTA", index=frame.index)
++        return pd.Series("ATP", index=frame.index)
++
++    @staticmethod
++    def _commence_time(frame: pd.DataFrame) -> pd.Series:
++        dates = pd.to_datetime(frame.get("Date"), errors="coerce", dayfirst=True)
++        if "Time" in frame:
++            combined = pd.to_datetime(
++                dates.dt.date.astype(str) + " " + frame["Time"].fillna("12:00").astype(str),
++                errors="coerce",
++            )
++            return combined.fillna(dates.dt.normalize() + pd.Timedelta(hours=12))
++        return dates.dt.normalize() + pd.Timedelta(hours=12)
++
++    def load(self) -> tuple[pd.DataFrame, TennisDataLoadReport]:
++        files = sorted(self.directory.glob("**/*.csv")) if self.directory.exists() else []
++        rows: list[dict] = []
++        source_rows = 0
++        skipped_files = 0
++        for path in files:
++            frame = self._read(path)
++            required = {"Date", "Winner", "Loser"}
++            if not required.issubset(frame.columns):
++                skipped_files += 1
++                continue
++            source_rows += len(frame)
++            commence = self._commence_time(frame)
++            tours = self._tour(frame, path)
++            tournaments = frame.get("Tournament", pd.Series("", index=frame.index)).fillna("")
++            for bookmaker, (winner_col, loser_col) in _ODDS_PAIRS.items():
++                if winner_col not in frame or loser_col not in frame:
++                    continue
++                winner_odds = pd.to_numeric(frame[winner_col], errors="coerce")
++                loser_odds = pd.to_numeric(frame[loser_col], errors="coerce")
++                valid = (
++                    commence.notna()
++                    & frame["Winner"].notna()
++                    & frame["Loser"].notna()
++                    & winner_odds.gt(1.0)
++                    & loser_odds.gt(1.0)
++                )
++                for index in frame.index[valid]:
++                    match_time = pd.Timestamp(commence.loc[index])
++                    rows.append(
++                        {
++                            "provider_event_id": "",
++                            "snapshot_time": match_time - pd.Timedelta(minutes=1),
++                            "commence_time": match_time,
++                            "tour": str(tours.loc[index]),
++                            "tournament": str(tournaments.loc[index]),
++                            "player1": str(frame.loc[index, "Winner"]),
++                            "player2": str(frame.loc[index, "Loser"]),
++                            "bookmaker": bookmaker,
++                            "decimal_odds1": float(winner_odds.loc[index]),
++                            "decimal_odds2": float(loser_odds.loc[index]),
++                            "source": "tennis_data",
++                            "is_closing": True,
++                            "source_file": str(path),
++                        }
++                    )
++        snapshots = pd.DataFrame(rows)
++        if not snapshots.empty:
++            snapshots = snapshots.replace([np.inf, -np.inf], np.nan).dropna(
++                subset=["snapshot_time", "commence_time", "player1", "player2", "decimal_odds1", "decimal_odds2"]
++            )
++            snapshots = snapshots.sort_values(
++                ["commence_time", "player1", "player2", "bookmaker"]
++            ).reset_index(drop=True)
++        return snapshots, TennisDataLoadReport(
++            files=len(files),
++            source_rows=source_rows,
++            odds_rows=len(snapshots),
++            skipped_files=skipped_files,
++        )
+--- a/src/tennis_predictor/features/engineer.py
++++ b/src/tennis_predictor/features/engineer.py
+@@ -18,13 +18,17 @@
+     def transform(self, matches: pd.DataFrame, *, reset: bool = True) -> pd.DataFrame:
+         if reset:
+             self.state = TennisState(self.feature_config, self.filter_config)
+-        ordered = matches.sort_values(["date", "event_date", "match_num", "match_id"]).copy()
++        ordered = matches.copy()
++        if "chronology_ts" not in ordered:
++            ordered["chronology_ts"] = pd.to_datetime(ordered["date"], errors="coerce")
++        ordered["chronology_ts"] = pd.to_datetime(ordered["chronology_ts"], errors="coerce")
++        ordered = ordered.sort_values(["chronology_ts", "date", "event_date", "match_num", "match_id"]).copy()
+         rows: list[dict] = []
+         for _, match in ordered.iterrows():
+             features = self.state.snapshot(
+                 str(match["player1_id"]),
+                 str(match["player2_id"]),
+-                date=pd.Timestamp(match["date"]),
++                date=pd.Timestamp(match.get("chronology_ts", match["date"])),
+                 surface=str(match["surface"]),
+                 tier=str(match["tier"]),
+                 player1_age=match.get("player1_age"),
+@@ -37,7 +41,7 @@
+             features["pre_slam_rest_risk_player2"] = pre_slam
+             record = match.to_dict()
+             record.update(features)
+-            if bool(match.get("walkover", False)):
++            if bool(match.get("walkover", False)) or bool(match.get("defaulted", False)) or bool(match.get("void", False)):
+                 record["outcome_weight"] = self.feature_config.walkover_elo_weight
+             elif bool(match.get("retirement", False)):
+                 record["outcome_weight"] = self.feature_config.retirement_elo_weight
+@@ -54,7 +58,7 @@
+         output["rank_missing2"] = output.get("player2_rank").isna().astype(int)
+         output["date_estimated_numeric"] = output["date_is_estimated"].astype(int)
+         output = FilterEngine.add_eligibility_views(output)
+-        return output.sort_values(["date", "match_id"]).reset_index(drop=True)
++        return output.sort_values(["chronology_ts", "date", "match_id"]).reset_index(drop=True)
+ 
+     @staticmethod
+     def numeric_feature_columns() -> list[str]:
+--- a/src/tennis_predictor/features/state.py
++++ b/src/tennis_predictor/features/state.py
+@@ -175,13 +175,13 @@
+             return
+         if not hasattr(self, "processed_match_ids"):
+             self.processed_match_ids = set()
+-        date = pd.Timestamp(row["date"])
++        date = pd.Timestamp(row.get("chronology_ts", row["date"]))
+         p1_id, p2_id = str(row["player1_id"]), str(row["player2_id"])
+         p1, p2 = self.player(p1_id), self.player(p2_id)
+         surface = str(row["surface"])
+         outcome1 = float(row["player1_won"])
+         outcome2 = 1.0 - outcome1
+-        if bool(row.get("walkover", False)):
++        if bool(row.get("walkover", False)) or bool(row.get("defaulted", False)) or bool(row.get("void", False)):
+             match_weight = self.cfg.walkover_elo_weight
+         elif bool(row.get("retirement", False)):
+             match_weight = self.cfg.retirement_elo_weight
+@@ -218,19 +218,20 @@
+             p2.match_dates.append(date)
+             self.h2h[tuple(sorted((p1_id, p2_id)))][p1_id if outcome1 == 1 else p2_id] += 1
+ 
+-        for state, pid, age in (
+-            (p1, p1_id, row.get("player1_age", np.nan)),
+-            (p2, p2_id, row.get("player2_age", np.nan)),
+-        ):
+-            state.total_matches += 1
+-            if str(row.get("tier", "")) not in {"Challenger", "ITF"}:
+-                state.tour_matches += 1
+-            state.first_date = date if state.first_date is None else min(state.first_date, date)
+-            state.last_date = date if state.last_date is None else max(state.last_date, date)
+-            if pd.notna(age):
+-                state.age_last = float(age)
+-            if str(row.get("retiring_player_id", "")) == pid:
+-                state.incidents.append(date)
++        if match_weight > 0:
++            for state, pid, age in (
++                (p1, p1_id, row.get("player1_age", np.nan)),
++                (p2, p2_id, row.get("player2_age", np.nan)),
++            ):
++                state.total_matches += 1
++                if str(row.get("tier", "")) not in {"Challenger", "ITF"}:
++                    state.tour_matches += 1
++                state.first_date = date if state.first_date is None else min(state.first_date, date)
++                state.last_date = date if state.last_date is None else max(state.last_date, date)
++                if pd.notna(age):
++                    state.age_last = float(age)
++                if str(row.get("retiring_player_id", "")) == pid:
++                    state.incidents.append(date)
+         self.as_of = date if self.as_of is None else max(self.as_of, date)
+         if match_id:
+             self.processed_match_ids.add(match_id)
+--- a/src/tennis_predictor/quality.py
++++ b/src/tennis_predictor/quality.py
+@@ -122,12 +122,16 @@
+             limitations.append(
+                 f"{player.name}: {player.surface_matches}/{int(recommended_surface_matches)} {surface} matches"
+             )
+-        if player.staleness_days is None:
+-            limitations.append(f"{player.name}: no reliable last-match date")
+-        elif player.staleness_days > int(max_staleness_days):
+-            limitations.append(
+-                f"{player.name}: last recorded match was {player.staleness_days} days ago"
+-            )
++
++    recent_players = [
++        player for player in players
++        if player.staleness_days is not None
++        and player.staleness_days <= int(max_staleness_days)
++    ]
++    if not recent_players:
++        limitations.append(
++            f"Neither player has a recorded match within {int(max_staleness_days)} days"
++        )
+ 
+     if limitations:
+         return MatchSampleQuality(
+@@ -146,7 +150,7 @@
+         can_bet=True,
+         reason=(
+             f"Both players have at least {int(recommended_matches)} recorded matches, "
+-            f"at least {int(recommended_surface_matches)} on {surface}, and recent data."
++            f"at least {int(recommended_surface_matches)} on {surface}, and at least one recent player."
+         ),
+         player1=p1,
+         player2=p2,
+--- a/src/tennis_predictor/services/__init__.py
++++ b/src/tennis_predictor/services/__init__.py
+@@ -1,3 +1,11 @@
++from .candidate_training import (
++    CandidateBuildReport,
++    ModelGateReport,
++    MultiSourceMatchAssembler,
++    build_candidate_model,
++    derive_competition_segment,
++    evaluate_model_gate,
++)
+ from .live_data import (
+     LiveBoard,
+     SyncReport,
+@@ -8,6 +16,12 @@
+ )
+ 
+ __all__ = [
++    "evaluate_model_gate",
++    "derive_competition_segment",
++    "build_candidate_model",
++    "MultiSourceMatchAssembler",
++    "ModelGateReport",
++    "CandidateBuildReport",
+     "LiveBoard",
+     "SyncReport",
+     "backfill_completed_matches",
+--- a/src/tennis_predictor/services/candidate_training.py
++++ b/src/tennis_predictor/services/candidate_training.py
+@@ -0,0 +1,553 @@
++from __future__ import annotations
++
++import json
++import shutil
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Any
++
++import numpy as np
++import pandas as pd
++
++from tennis_predictor.backtest import WalkForwardBacktester
++from tennis_predictor.backtest.metrics import calibration_curve_table, evaluate_predictions
++from tennis_predictor.config import AppConfig
++from tennis_predictor.data import OddsAligner, TennisDataLoader, load_normalized_snapshots
++from tennis_predictor.data.names import normalize_name
++from tennis_predictor.features import FeatureEngineer
++from tennis_predictor.filters import FilterEngine
++from tennis_predictor.pipeline import TennisPredictionSystem
++from tennis_predictor.storage.identity_store import IdentityStore
++
++
++_SOURCE_PRIORITY = {
++    "api_tennis": 30,
++    "api_tennis_archive": 30,
++    "sackmann": 20,
++    "tennis_data": 10,
++}
++_REQUIRED_GATE_SEGMENTS = ("ATP_CHALLENGER", "ITF_MEN", "ITF_WOMEN")
++
++
++def derive_competition_segment(frame: pd.DataFrame) -> pd.Series:
++    tour = frame.get("tour", pd.Series("", index=frame.index)).astype(str).str.upper()
++    tier = frame.get("tier", pd.Series("", index=frame.index)).astype(str).str.casefold()
++    existing = frame.get("competition_segment", pd.Series("", index=frame.index)).astype(str)
++    result = existing.where(existing.ne(""), "OTHER")
++    result = result.mask(tour.eq("ATP") & tier.eq("challenger"), "ATP_CHALLENGER")
++    result = result.mask(tour.eq("ATP") & tier.eq("itf"), "ITF_MEN")
++    result = result.mask(tour.eq("WTA") & tier.eq("itf"), "ITF_WOMEN")
++    result = result.mask(tour.eq("ATP") & result.eq("OTHER"), "ATP_MAIN")
++    result = result.mask(tour.eq("WTA") & result.eq("OTHER"), "WTA_MAIN")
++    return result
++
++
++def _stable_seconds(value: str) -> int:
++    return sum(ord(char) for char in value) % 86_400
++
++
++def chronology_timestamp(frame: pd.DataFrame) -> pd.Series:
++    date_values = pd.to_datetime(frame["date"], errors="coerce")
++    if "commence_time" in frame:
++        commence = pd.to_datetime(frame["commence_time"], errors="coerce")
++    else:
++        commence = pd.Series(pd.NaT, index=frame.index, dtype="datetime64[ns]")
++    fallback = date_values.dt.normalize() + pd.to_timedelta(
++        frame["match_id"].astype(str).map(_stable_seconds), unit="s"
++    )
++    return commence.fillna(fallback)
++
++
++@dataclass(slots=True)
++class AssemblyReport:
++    input_rows: int
++    canonical_rows: int
++    unresolved_rows: int
++    duplicate_rows_removed: int
++    output_rows: int
++    by_source: dict[str, int]
++    by_segment: dict[str, int]
++
++    def to_dict(self) -> dict[str, Any]:
++        return asdict(self)
++
++
++class MultiSourceMatchAssembler:
++    """Canonicalize all match sources into API-Tennis player IDs."""
++
++    def __init__(self, identity_store: IdentityStore, *, fuzzy_threshold: float = 96.0):
++        self.identity_store = identity_store
++        self.fuzzy_threshold = float(fuzzy_threshold)
++
++    def _resolve_side(
++        self,
++        frame: pd.DataFrame,
++        *,
++        side: str,
++        source: str,
++    ) -> tuple[pd.Series, pd.Series, pd.Series]:
++        names = frame[side].fillna("").astype(str)
++        tours = frame.get("tour", pd.Series("", index=frame.index)).fillna("").astype(str)
++        source_ids = frame.get(f"{side}_provider_id")
++        if source_ids is None:
++            source_ids = frame.get(f"{side}_id", pd.Series("", index=frame.index))
++
++        resolved_ids = pd.Series(pd.NA, index=frame.index, dtype="Int64")
++        canonical_names = pd.Series(pd.NA, index=frame.index, dtype="string")
++        statuses = pd.Series("UNRESOLVED", index=frame.index, dtype="string")
++
++        cache: dict[tuple[str, str, str], tuple[int | None, str | None, str]] = {}
++        for index in frame.index:
++            raw_name = names.loc[index]
++            tour = tours.loc[index].upper()
++            raw_source_id = source_ids.loc[index] if index in source_ids.index else ""
++            key = (str(raw_source_id), normalize_name(raw_name), tour)
++            cached = cache.get(key)
++            if cached is None:
++                resolution = None
++                if source == "api_tennis" and str(raw_source_id).strip().isdigit():
++                    source_resolution = self.identity_store.resolve_source_id(
++                        source="api_tennis",
++                        source_player_id=str(raw_source_id).strip(),
++                    )
++                    if source_resolution.resolved:
++                        resolution = (
++                            source_resolution.provider_player_id,
++                            source_resolution.canonical_name,
++                            source_resolution.status,
++                        )
++                elif str(raw_source_id).strip():
++                    source_resolution = self.identity_store.resolve_source_id(
++                        source=source,
++                        source_player_id=str(raw_source_id),
++                    )
++                    if source_resolution.resolved:
++                        resolution = (
++                            source_resolution.provider_player_id,
++                            source_resolution.canonical_name,
++                            source_resolution.status,
++                        )
++
++                if resolution is None:
++                    name_resolution = self.identity_store.resolve_name(
++                        raw_name,
++                        source=source,
++                        tour=tour,
++                        fuzzy_threshold=self.fuzzy_threshold,
++                        queue_unresolved=True,
++                    )
++                    resolution = (
++                        name_resolution.provider_player_id,
++                        name_resolution.canonical_name,
++                        name_resolution.status,
++                    )
++                    if name_resolution.resolved and str(raw_source_id).strip():
++                        self.identity_store.link_source_id(
++                            source=source,
++                            source_player_id=str(raw_source_id),
++                            provider_player_id=int(name_resolution.provider_player_id),
++                        )
++                cache[key] = resolution
++                cached = resolution
++
++            player_id, canonical_name, status = cached
++            if player_id is not None:
++                resolved_ids.loc[index] = int(player_id)
++                canonical_names.loc[index] = str(canonical_name)
++            statuses.loc[index] = status
++        return resolved_ids, canonical_names, statuses
++
++    @staticmethod
++    def _source_name(frame: pd.DataFrame, default: str) -> pd.Series:
++        if "source" in frame:
++            source = frame["source"].fillna("").astype(str)
++        elif "source_file" in frame:
++            source = frame["source_file"].fillna("").astype(str)
++        else:
++            source = pd.Series(default, index=frame.index)
++        normalized = source.str.casefold()
++        return pd.Series(
++            np.select(
++                [
++                    normalized.str.contains("api_tennis"),
++                    normalized.str.contains("sackmann") | normalized.str.contains("atp_matches") | normalized.str.contains("wta_matches"),
++                    normalized.str.contains("tennis_data"),
++                ],
++                ["api_tennis", "sackmann", "tennis_data"],
++                default=default,
++            ),
++            index=frame.index,
++        )
++
++    def canonicalize(self, frame: pd.DataFrame, *, default_source: str) -> tuple[pd.DataFrame, pd.DataFrame]:
++        if frame is None or frame.empty:
++            return pd.DataFrame(), pd.DataFrame()
++        output = frame.copy()
++        output["source"] = self._source_name(output, default_source)
++        resolved_parts: list[pd.DataFrame] = []
++        unresolved_parts: list[pd.DataFrame] = []
++        for source, group in output.groupby("source", sort=False):
++            group = group.copy()
++            p1_id, p1_name, p1_status = self._resolve_side(group, side="player1", source=str(source))
++            p2_id, p2_name, p2_status = self._resolve_side(group, side="player2", source=str(source))
++            group["player1_provider_id"] = p1_id
++            group["player2_provider_id"] = p2_id
++            group["identity_status1"] = p1_status
++            group["identity_status2"] = p2_status
++            group["identity_resolved"] = p1_id.notna() & p2_id.notna()
++            group.loc[p1_name.notna(), "player1"] = p1_name[p1_name.notna()]
++            group.loc[p2_name.notna(), "player2"] = p2_name[p2_name.notna()]
++            group["player1_id"] = p1_id.map(
++                lambda value: self.identity_store.model_player_id(value) if pd.notna(value) else pd.NA
++            )
++            group["player2_id"] = p2_id.map(
++                lambda value: self.identity_store.model_player_id(value) if pd.notna(value) else pd.NA
++            )
++            resolved_parts.append(group[group["identity_resolved"]].copy())
++            rejected = group[~group["identity_resolved"]].copy()
++            if not rejected.empty:
++                rejected["unresolved_reason"] = (
++                    "player1=" + rejected["identity_status1"].astype(str)
++                    + "; player2=" + rejected["identity_status2"].astype(str)
++                )
++                unresolved_parts.append(rejected)
++        resolved = pd.concat(resolved_parts, ignore_index=True) if resolved_parts else pd.DataFrame()
++        unresolved = pd.concat(unresolved_parts, ignore_index=True) if unresolved_parts else pd.DataFrame()
++        return resolved, unresolved
++
++    @staticmethod
++    def _dedupe_key(row: pd.Series) -> str:
++        provider_event = str(row.get("provider_event_id") or "").strip()
++        source = str(row.get("source") or "")
++        if source == "api_tennis" and provider_event:
++            return f"api_tennis:{provider_event}"
++        players = sorted(
++            [str(int(row["player1_provider_id"])), str(int(row["player2_provider_id"]))]
++        )
++        date_value = pd.Timestamp(row["date"]).date().isoformat()
++        return "|".join(
++            [
++                date_value,
++                str(row.get("tour") or ""),
++                normalize_name(str(row.get("tournament") or "")),
++                str(row.get("round") or ""),
++                players[0],
++                players[1],
++            ]
++        )
++
++    def assemble(
++        self,
++        sources: list[tuple[pd.DataFrame, str]],
++        *,
++        start_date: object,
++        end_date: object | None = None,
++    ) -> tuple[pd.DataFrame, pd.DataFrame, AssemblyReport]:
++        canonical: list[pd.DataFrame] = []
++        unresolved: list[pd.DataFrame] = []
++        input_rows = 0
++        for frame, default_source in sources:
++            if frame is None or frame.empty:
++                continue
++            input_rows += len(frame)
++            resolved, rejected = self.canonicalize(frame, default_source=default_source)
++            if not resolved.empty:
++                canonical.append(resolved)
++            if not rejected.empty:
++                unresolved.append(rejected)
++        combined = pd.concat(canonical, ignore_index=True) if canonical else pd.DataFrame()
++        unresolved_frame = pd.concat(unresolved, ignore_index=True) if unresolved else pd.DataFrame()
++        if combined.empty:
++            report = AssemblyReport(input_rows, 0, len(unresolved_frame), 0, 0, {}, {})
++            return combined, unresolved_frame, report
++
++        combined["date"] = pd.to_datetime(combined["date"], errors="coerce")
++        combined = combined.dropna(subset=["date", "player1_won"]).copy()
++        start = pd.Timestamp(start_date).normalize()
++        end = pd.Timestamp(end_date).normalize() if end_date is not None else combined["date"].max()
++        combined = combined[combined["date"].between(start, end)].copy()
++        combined["surface"] = combined.get("surface", "Unknown").fillna("Unknown").astype(str).str.title()
++        combined.loc[~combined["surface"].isin({"Hard", "Clay", "Grass", "Carpet"}), "surface"] = "Unknown"
++        combined["surface_known"] = combined["surface"].isin({"Hard", "Clay", "Grass", "Carpet"})
++        combined["competition_segment"] = derive_competition_segment(combined)
++        combined["chronology_ts"] = chronology_timestamp(combined)
++        combined["event_date"] = pd.to_datetime(
++            combined.get("event_date", combined["date"]), errors="coerce"
++        ).fillna(combined["date"])
++        combined["date_is_estimated"] = combined.get("date_is_estimated", False).fillna(False).astype(bool)
++        combined["match_num"] = pd.to_numeric(combined.get("match_num", 0), errors="coerce").fillna(0).astype(int)
++        combined["retirement"] = combined.get("retirement", False).fillna(False).astype(bool)
++        combined["walkover"] = combined.get("walkover", False).fillna(False).astype(bool)
++        combined["defaulted"] = combined.get("defaulted", False).fillna(False).astype(bool)
++        combined["void"] = combined.get("void", False).fillna(False).astype(bool)
++        combined["game_form_eligible"] = combined.get(
++            "game_form_eligible",
++            ~(combined["retirement"] | combined["walkover"] | combined["defaulted"] | combined["void"]),
++        ).fillna(False).astype(bool)
++        combined["source_priority"] = combined["source"].map(_SOURCE_PRIORITY).fillna(0).astype(int)
++        combined["dedupe_key"] = combined.apply(self._dedupe_key, axis=1)
++        before = len(combined)
++        combined = (
++            combined.sort_values(
++                ["source_priority", "chronology_ts", "match_id"],
++                ascending=[False, True, True],
++            )
++            .drop_duplicates("dedupe_key", keep="first")
++            .sort_values(["chronology_ts", "match_id"])
++            .reset_index(drop=True)
++        )
++        duplicates = before - len(combined)
++        combined = combined.drop(columns=["source_priority", "dedupe_key"], errors="ignore")
++        report = AssemblyReport(
++            input_rows=input_rows,
++            canonical_rows=before,
++            unresolved_rows=len(unresolved_frame),
++            duplicate_rows_removed=duplicates,
++            output_rows=len(combined),
++            by_source=combined["source"].value_counts().astype(int).to_dict(),
++            by_segment=combined["competition_segment"].value_counts().astype(int).to_dict(),
++        )
++        return combined, unresolved_frame, report
++
++
++@dataclass(slots=True)
++class ModelGateReport:
++    status: str
++    required_segments: list[str]
++    passed_segments: list[str]
++    failed_segments: list[str]
++    inconclusive_segments: list[str]
++    comparisons: list[dict[str, Any]]
++
++    def to_dict(self) -> dict[str, Any]:
++        return asdict(self)
++
++
++def _boosted_segment_rows(metrics: pd.DataFrame) -> pd.DataFrame:
++    if metrics is None or metrics.empty:
++        return pd.DataFrame()
++    frame = metrics.copy()
++    return frame[
++        frame["filter_view"].eq("all")
++        & frame["segment_type"].eq("competition_segment")
++        & frame["segment"].astype(str).str.startswith("boosted|")
++    ].copy()
++
++
++def evaluate_model_gate(
++    candidate_metrics: pd.DataFrame,
++    production_metrics: pd.DataFrame,
++    *,
++    required_segments: tuple[str, ...] = _REQUIRED_GATE_SEGMENTS,
++    minimum_segment_matches: int = 200,
++) -> ModelGateReport:
++    candidate = _boosted_segment_rows(candidate_metrics).set_index("segment")
++    production = _boosted_segment_rows(production_metrics).set_index("segment")
++    passed: list[str] = []
++    failed: list[str] = []
++    inconclusive: list[str] = []
++    comparisons: list[dict[str, Any]] = []
++    for segment in required_segments:
++        key = f"boosted|{segment}"
++        if key not in candidate.index or key not in production.index:
++            inconclusive.append(segment)
++            comparisons.append({"segment": segment, "status": "INCONCLUSIVE", "reason": "missing candidate or production metrics"})
++            continue
++        cand = candidate.loc[key]
++        prod = production.loc[key]
++        if int(cand["matches"]) < int(minimum_segment_matches) or int(prod["matches"]) < int(minimum_segment_matches):
++            inconclusive.append(segment)
++            comparisons.append({
++                "segment": segment,
++                "status": "INCONCLUSIVE",
++                "reason": f"fewer than {minimum_segment_matches} walk-forward matches",
++                "candidate_matches": int(cand["matches"]),
++                "production_matches": int(prod["matches"]),
++            })
++            continue
++        better_log_loss = float(cand["log_loss"]) < float(prod["log_loss"])
++        better_calibration = float(cand["ece"]) <= float(prod["ece"])
++        status = "PASS" if better_log_loss and better_calibration else "FAIL"
++        (passed if status == "PASS" else failed).append(segment)
++        comparisons.append({
++            "segment": segment,
++            "status": status,
++            "candidate_matches": int(cand["matches"]),
++            "production_matches": int(prod["matches"]),
++            "candidate_log_loss": float(cand["log_loss"]),
++            "production_log_loss": float(prod["log_loss"]),
++            "candidate_ece": float(cand["ece"]),
++            "production_ece": float(prod["ece"]),
++        })
++    if failed:
++        overall = "FAIL"
++    elif inconclusive:
++        overall = "INCONCLUSIVE"
++    else:
++        overall = "PASS"
++    return ModelGateReport(
++        status=overall,
++        required_segments=list(required_segments),
++        passed_segments=passed,
++        failed_segments=failed,
++        inconclusive_segments=inconclusive,
++        comparisons=comparisons,
++    )
++
++
++@dataclass(slots=True)
++class CandidateBuildReport:
++    matches_path: str
++    features_path: str
++    predictions_path: str
++    metrics_path: str
++    calibration_path: str
++    candidate_model_path: str
++    unresolved_path: str
++    assembly: dict[str, Any]
++    model_gate: dict[str, Any]
++    promoted: bool
++
++    def to_dict(self) -> dict[str, Any]:
++        return asdict(self)
++
++
++def build_candidate_model(
++    config: AppConfig,
++    *,
++    api_matches_path: str | Path,
++    existing_matches_path: str | Path | None,
++    start_date: object,
++    end_date: object | None,
++    output_dir: str | Path,
++    identity_database_path: str | Path,
++    production_predictions_path: str | Path | None = None,
++    production_model_path: str | Path | None = None,
++    promote_if_passed: bool = False,
++) -> CandidateBuildReport:
++    output = Path(output_dir)
++    output.mkdir(parents=True, exist_ok=True)
++    identity_store = IdentityStore(identity_database_path)
++    sources: list[tuple[pd.DataFrame, str]] = []
++    api_path = Path(api_matches_path)
++    if not api_path.exists():
++        raise FileNotFoundError(api_path)
++    sources.append((pd.read_parquet(api_path), "api_tennis"))
++    if existing_matches_path:
++        existing_path = Path(existing_matches_path)
++        if existing_path.exists():
++            sources.append((pd.read_parquet(existing_path), "sackmann"))
++
++    assembler = MultiSourceMatchAssembler(
++        identity_store,
++        fuzzy_threshold=getattr(config.history, "fuzzy_match_threshold", 96.0),
++    )
++    matches, unresolved, assembly_report = assembler.assemble(
++        sources,
++        start_date=start_date,
++        end_date=end_date,
++    )
++    if matches.empty:
++        raise RuntimeError("No canonical matches remained after identity resolution.")
++
++    snapshot_frames: list[pd.DataFrame] = []
++    if config.odds.normalized_snapshots_path and Path(config.odds.normalized_snapshots_path).exists():
++        snapshot_frames.append(load_normalized_snapshots(config.odds.normalized_snapshots_path))
++    tennis_data_directory = getattr(config.history, "tennis_data_directory", None)
++    tennis_data_snapshot_path = Path(
++        getattr(config.history, "tennis_data_snapshots_path", "data/normalized/tennis_data_odds.parquet")
++    )
++    if tennis_data_directory and Path(tennis_data_directory).exists():
++        tennis_data, tennis_data_report = TennisDataLoader(tennis_data_directory).load()
++        if not tennis_data.empty:
++            tennis_data_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
++            tennis_data.to_parquet(tennis_data_snapshot_path, index=False)
++            snapshot_frames.append(tennis_data)
++        (output / "tennis_data_report.json").write_text(
++            json.dumps(asdict(tennis_data_report), indent=2), encoding="utf-8"
++        )
++    elif tennis_data_snapshot_path.exists():
++        snapshot_frames.append(pd.read_parquet(tennis_data_snapshot_path))
++
++    if snapshot_frames:
++        snapshots = pd.concat(snapshot_frames, ignore_index=True)
++        for column in ("snapshot_time", "commence_time"):
++            snapshots[column] = pd.to_datetime(snapshots[column], errors="coerce")
++        matches, aligned = OddsAligner().align(matches, snapshots)
++        if not aligned.empty:
++            aligned.to_parquet(output / "aligned_odds.parquet", index=False)
++
++    matches = FilterEngine(config.filters).add_static_flags(matches)
++    engineer = FeatureEngineer(config.features, config.filters)
++    features = engineer.transform(matches, reset=True)
++    backtester = WalkForwardBacktester(config.model, config.backtest)
++    predictions, metrics = backtester.run(features)
++    calibration = calibration_curve_table(predictions)
++
++    matches_path = output / "matches_full.parquet"
++    features_path = output / "features_full.parquet"
++    predictions_path = output / "predictions.parquet"
++    metrics_path = output / "metrics.csv"
++    calibration_path = output / "calibration_curves.csv"
++    unresolved_path = output / "identity_unresolved.parquet"
++    candidate_model_path = output / "trained_system_candidate.joblib"
++
++    matches.to_parquet(matches_path, index=False)
++    features.to_parquet(features_path, index=False)
++    predictions.to_parquet(predictions_path, index=False)
++    metrics.to_csv(metrics_path, index=False)
++    calibration.to_csv(calibration_path, index=False)
++    unresolved.to_parquet(unresolved_path, index=False)
++    TennisPredictionSystem(config).fit(matches).save(candidate_model_path)
++
++    if production_predictions_path and Path(production_predictions_path).exists():
++        production_predictions = pd.read_parquet(production_predictions_path)
++        if "competition_segment" not in production_predictions:
++            production_predictions["competition_segment"] = derive_competition_segment(production_predictions)
++        production_metrics = evaluate_predictions(
++            production_predictions,
++            bootstrap_samples=config.backtest.bootstrap_samples,
++            random_state=config.backtest.random_state,
++        )
++    else:
++        production_metrics = pd.DataFrame()
++    gate = evaluate_model_gate(
++        metrics,
++        production_metrics,
++        minimum_segment_matches=getattr(config.history, "minimum_gate_segment_matches", 200),
++    )
++    (output / "promotion_gate.json").write_text(
++        json.dumps(gate.to_dict(), indent=2), encoding="utf-8"
++    )
++    (output / "assembly_report.json").write_text(
++        json.dumps(assembly_report.to_dict(), indent=2), encoding="utf-8"
++    )
++
++    promoted = False
++    if promote_if_passed:
++        if gate.status != "PASS":
++            raise RuntimeError(
++                f"Candidate was not promoted because the model gate status is {gate.status}."
++            )
++        if not production_model_path:
++            raise ValueError("production_model_path is required for promotion")
++        production = Path(production_model_path)
++        production.parent.mkdir(parents=True, exist_ok=True)
++        if production.exists():
++            backup = production.with_suffix(production.suffix + ".pre_candidate_backup")
++            shutil.copy2(production, backup)
++        shutil.copy2(candidate_model_path, production)
++        promoted = True
++
++    return CandidateBuildReport(
++        matches_path=str(matches_path),
++        features_path=str(features_path),
++        predictions_path=str(predictions_path),
++        metrics_path=str(metrics_path),
++        calibration_path=str(calibration_path),
++        candidate_model_path=str(candidate_model_path),
++        unresolved_path=str(unresolved_path),
++        assembly=assembly_report.to_dict(),
++        model_gate=gate.to_dict(),
++        promoted=promoted,
++    )
+--- a/src/tennis_predictor/services/live_data.py
++++ b/src/tennis_predictor/services/live_data.py
+@@ -21,6 +21,7 @@
+ from tennis_predictor.pipeline import TennisPredictionSystem
+ from tennis_predictor.quality import evaluate_match_sample_quality
+ from tennis_predictor.storage import (
++    IdentityStore,
+     initialize_live_store,
+     initialize_paper_trading_db,
+     resolve_player_alias,
+@@ -292,6 +293,27 @@
+ ) -> PlayerIdentity | None:
+     if not provider_name.strip():
+         return None
++
++    # New ID-first path: exact aliases and high-confidence fuzzy matches resolve
++    # to immutable API-Tennis IDs. Unresolved names are queued for manual review.
++    history_config = getattr(config, "history", None)
++    if history_config is not None:
++        identity_store = IdentityStore(history_config.identity_database_path)
++        resolution = identity_store.resolve_name(
++            provider_name,
++            source="polymarket",
++            tour=tour,
++            fuzzy_threshold=getattr(history_config, "fuzzy_match_threshold", 96.0),
++            minimum_margin=getattr(history_config, "fuzzy_minimum_margin", 3.0),
++            queue_unresolved=True,
++        )
++        if resolution.resolved and system.name_resolver is not None:
++            model_id = identity_store.model_player_id(resolution.provider_player_id)
++            identity = system.name_resolver.by_id.get(model_id)
++            if identity is not None:
++                return identity
++
++    # Backward-compatible path for the currently deployed pre-ID-first model.
+     alias = resolve_player_alias(
+         config.paper_trading.database_path,
+         provider="polymarket",
+--- a/src/tennis_predictor/storage/__init__.py
++++ b/src/tennis_predictor/storage/__init__.py
+@@ -1,3 +1,8 @@
++from .identity_store import (
++    IdentityResolution,
++    IdentityStore,
++    initialize_identity_store,
++)
+ from .live_store import (
+     available_history_dates,
+     available_tournaments,
+@@ -26,6 +31,9 @@
+ )
+ 
+ __all__ = [
++    "initialize_identity_store",
++    "IdentityStore",
++    "IdentityResolution",
+     "STARTING_BANKROLL",
+     "WalletSummary",
+     "available_history_dates",
+--- a/src/tennis_predictor/storage/identity_store.py
++++ b/src/tennis_predictor/storage/identity_store.py
+@@ -0,0 +1,665 @@
++from __future__ import annotations
++
++import sqlite3
++from contextlib import contextmanager
++from dataclasses import dataclass
++from datetime import datetime, timezone
++from pathlib import Path
++from typing import Iterator
++
++from rapidfuzz import fuzz, process
++
++from tennis_predictor.data.names import normalize_name
++
++
++def _utc_now() -> str:
++    return datetime.now(timezone.utc).isoformat(timespec="seconds")
++
++
++@contextmanager
++def _connection(path: str | Path) -> Iterator[sqlite3.Connection]:
++    db_path = Path(path)
++    db_path.parent.mkdir(parents=True, exist_ok=True)
++    connection = sqlite3.connect(db_path, timeout=30)
++    connection.row_factory = sqlite3.Row
++    connection.execute("PRAGMA journal_mode = WAL")
++    connection.execute("PRAGMA foreign_keys = ON")
++    try:
++        yield connection
++        connection.commit()
++    except Exception:
++        connection.rollback()
++        raise
++    finally:
++        connection.close()
++
++
++def initialize_identity_store(path: str | Path) -> Path:
++    """Create the immutable API-Tennis-ID-first identity registry."""
++    db_path = Path(path)
++    with _connection(db_path) as connection:
++        connection.executescript(
++            """
++            CREATE TABLE IF NOT EXISTS players (
++                provider_player_id INTEGER PRIMARY KEY,
++                canonical_name TEXT NOT NULL,
++                normalized_name TEXT NOT NULL,
++                dob TEXT,
++                nationality TEXT,
++                tour TEXT NOT NULL,
++                source_updated_at TEXT,
++                created_at TEXT NOT NULL,
++                updated_at TEXT NOT NULL
++            );
++
++            CREATE INDEX IF NOT EXISTS idx_players_normalized_name
++                ON players(normalized_name, tour);
++
++            CREATE TABLE IF NOT EXISTS player_aliases (
++                alias_name TEXT PRIMARY KEY,
++                display_alias TEXT NOT NULL,
++                provider_player_id INTEGER NOT NULL,
++                source TEXT NOT NULL,
++                confidence REAL,
++                verified INTEGER NOT NULL DEFAULT 0,
++                created_at TEXT NOT NULL,
++                FOREIGN KEY(provider_player_id) REFERENCES players(provider_player_id)
++            );
++
++            CREATE INDEX IF NOT EXISTS idx_player_aliases_player
++                ON player_aliases(provider_player_id);
++
++            CREATE TABLE IF NOT EXISTS source_player_ids (
++                source TEXT NOT NULL,
++                source_player_id TEXT NOT NULL,
++                provider_player_id INTEGER NOT NULL,
++                created_at TEXT NOT NULL,
++                PRIMARY KEY(source, source_player_id),
++                FOREIGN KEY(provider_player_id) REFERENCES players(provider_player_id)
++            );
++
++            CREATE TABLE IF NOT EXISTS alias_review_queue (
++                review_id INTEGER PRIMARY KEY AUTOINCREMENT,
++                source TEXT NOT NULL,
++                raw_name TEXT NOT NULL,
++                normalized_name TEXT NOT NULL,
++                tour TEXT NOT NULL,
++                suggested_player_id INTEGER,
++                suggested_name TEXT,
++                fuzzy_score REAL,
++                status TEXT NOT NULL DEFAULT 'PENDING',
++                created_at TEXT NOT NULL,
++                resolved_at TEXT,
++                UNIQUE(source, normalized_name, tour, status)
++            );
++
++            CREATE INDEX IF NOT EXISTS idx_alias_review_status
++                ON alias_review_queue(status, created_at);
++
++            CREATE TABLE IF NOT EXISTS tournament_registry (
++                provider TEXT NOT NULL,
++                provider_tournament_id TEXT NOT NULL,
++                canonical_name TEXT NOT NULL,
++                normalized_name TEXT NOT NULL,
++                tour TEXT NOT NULL,
++                surface TEXT NOT NULL DEFAULT 'Unknown',
++                tier TEXT NOT NULL,
++                source_updated_at TEXT,
++                created_at TEXT NOT NULL,
++                updated_at TEXT NOT NULL,
++                PRIMARY KEY(provider, provider_tournament_id, tour)
++            );
++
++            CREATE INDEX IF NOT EXISTS idx_tournament_registry_name
++                ON tournament_registry(provider, normalized_name, tour);
++            """
++        )
++    return db_path
++
++
++@dataclass(frozen=True, slots=True)
++class IdentityResolution:
++    provider_player_id: int | None
++    canonical_name: str | None
++    status: str
++    score: float | None = None
++    review_id: int | None = None
++
++    @property
++    def resolved(self) -> bool:
++        return self.provider_player_id is not None and self.status in {
++            "EXACT_ID",
++            "EXACT_ALIAS",
++            "EXACT_NAME",
++            "FUZZY_AUTO",
++        }
++
++
++class IdentityStore:
++    """Persistent player/tournament registry keyed by API-Tennis player IDs."""
++
++    def __init__(self, path: str | Path):
++        self.path = initialize_identity_store(path)
++
++    @staticmethod
++    def model_player_id(provider_player_id: int | str) -> str:
++        return f"api_tennis:{int(provider_player_id)}"
++
++    @staticmethod
++    def compatible_tours(tour: str) -> set[str]:
++        value = str(tour or "").upper()
++        if value == "ATP":
++            return {"ATP", "ITF_M"}
++        if value == "ITF_M":
++            return {"ITF_M", "ATP"}
++        if value == "WTA":
++            return {"WTA", "ITF_W"}
++        if value == "ITF_W":
++            return {"ITF_W", "WTA"}
++        return {value} if value else set()
++
++    def upsert_player(
++        self,
++        provider_player_id: int | str,
++        *,
++        canonical_name: str,
++        tour: str,
++        dob: str | None = None,
++        nationality: str | None = None,
++        source_updated_at: str | None = None,
++        aliases: list[str] | None = None,
++    ) -> int:
++        player_id = int(provider_player_id)
++        canonical_name = str(canonical_name).strip()
++        if not canonical_name:
++            raise ValueError("canonical_name cannot be blank")
++        tour = str(tour or "").upper()
++        now = _utc_now()
++        with _connection(self.path) as connection:
++            connection.execute(
++                """
++                INSERT INTO players(
++                    provider_player_id, canonical_name, normalized_name, dob,
++                    nationality, tour, source_updated_at, created_at, updated_at
++                ) VALUES (?,?,?,?,?,?,?,?,?)
++                ON CONFLICT(provider_player_id) DO UPDATE SET
++                    canonical_name=CASE
++                        WHEN length(excluded.canonical_name) > length(players.canonical_name)
++                        THEN excluded.canonical_name ELSE players.canonical_name END,
++                    normalized_name=CASE
++                        WHEN length(excluded.canonical_name) > length(players.canonical_name)
++                        THEN excluded.normalized_name ELSE players.normalized_name END,
++                    dob=COALESCE(excluded.dob, players.dob),
++                    nationality=COALESCE(excluded.nationality, players.nationality),
++                    tour=CASE WHEN players.tour = '' THEN excluded.tour ELSE players.tour END,
++                    source_updated_at=COALESCE(excluded.source_updated_at, players.source_updated_at),
++                    updated_at=excluded.updated_at
++                """,
++                (
++                    player_id,
++                    canonical_name,
++                    normalize_name(canonical_name),
++                    dob,
++                    nationality,
++                    tour,
++                    source_updated_at,
++                    now,
++                    now,
++                ),
++            )
++        self.add_alias(
++            canonical_name,
++            player_id,
++            source="api_tennis",
++            confidence=100.0,
++            verified=True,
++            queue_conflict=False,
++        )
++        for alias in aliases or []:
++            self.add_alias(
++                alias,
++                player_id,
++                source="api_tennis",
++                confidence=100.0,
++                verified=True,
++                queue_conflict=False,
++            )
++        return player_id
++
++    def add_alias(
++        self,
++        alias_name: str,
++        provider_player_id: int | str,
++        *,
++        source: str,
++        confidence: float | None = None,
++        verified: bool = False,
++        queue_conflict: bool = True,
++    ) -> bool:
++        alias_key = normalize_name(alias_name)
++        if not alias_key:
++            return False
++        player_id = int(provider_player_id)
++        with _connection(self.path) as connection:
++            existing = connection.execute(
++                "SELECT provider_player_id FROM player_aliases WHERE alias_name = ?",
++                (alias_key,),
++            ).fetchone()
++            if existing is not None and int(existing["provider_player_id"]) != player_id:
++                if queue_conflict:
++                    player = connection.execute(
++                        "SELECT canonical_name, tour FROM players WHERE provider_player_id = ?",
++                        (player_id,),
++                    ).fetchone()
++                    self._queue_review_connection(
++                        connection,
++                        source=source,
++                        raw_name=alias_name,
++                        tour=str(player["tour"] if player else ""),
++                        suggested_player_id=player_id,
++                        suggested_name=str(player["canonical_name"] if player else ""),
++                        score=confidence,
++                    )
++                return False
++            connection.execute(
++                """
++                INSERT INTO player_aliases(
++                    alias_name, display_alias, provider_player_id, source,
++                    confidence, verified, created_at
++                ) VALUES (?,?,?,?,?,?,?)
++                ON CONFLICT(alias_name) DO UPDATE SET
++                    display_alias=excluded.display_alias,
++                    source=excluded.source,
++                    confidence=COALESCE(excluded.confidence, player_aliases.confidence),
++                    verified=MAX(player_aliases.verified, excluded.verified)
++                """,
++                (
++                    alias_key,
++                    str(alias_name).strip(),
++                    player_id,
++                    str(source),
++                    confidence,
++                    int(bool(verified)),
++                    _utc_now(),
++                ),
++            )
++        return True
++
++    def link_source_id(
++        self,
++        *,
++        source: str,
++        source_player_id: str | int,
++        provider_player_id: str | int,
++    ) -> None:
++        with _connection(self.path) as connection:
++            connection.execute(
++                """
++                INSERT INTO source_player_ids(source, source_player_id, provider_player_id, created_at)
++                VALUES (?,?,?,?)
++                ON CONFLICT(source, source_player_id) DO UPDATE SET
++                    provider_player_id=excluded.provider_player_id
++                """,
++                (str(source), str(source_player_id), int(provider_player_id), _utc_now()),
++            )
++
++    def resolve_source_id(self, *, source: str, source_player_id: str | int) -> IdentityResolution:
++        with _connection(self.path) as connection:
++            row = connection.execute(
++                """
++                SELECT p.provider_player_id, p.canonical_name
++                FROM source_player_ids s
++                JOIN players p ON p.provider_player_id = s.provider_player_id
++                WHERE s.source = ? AND s.source_player_id = ?
++                """,
++                (str(source), str(source_player_id)),
++            ).fetchone()
++        if row is None:
++            return IdentityResolution(None, None, "UNRESOLVED")
++        return IdentityResolution(
++            int(row["provider_player_id"]), str(row["canonical_name"]), "EXACT_ID", 100.0
++        )
++
++    def resolve_name(
++        self,
++        raw_name: str,
++        *,
++        source: str,
++        tour: str,
++        fuzzy_threshold: float = 96.0,
++        minimum_margin: float = 3.0,
++        queue_unresolved: bool = True,
++    ) -> IdentityResolution:
++        normalized = normalize_name(raw_name)
++        if not normalized:
++            return IdentityResolution(None, None, "UNRESOLVED")
++        tour = str(tour or "").upper()
++        compatible_tours = self.compatible_tours(tour)
++        with _connection(self.path) as connection:
++            alias = connection.execute(
++                """
++                SELECT p.provider_player_id, p.canonical_name, p.tour
++                FROM player_aliases a
++                JOIN players p ON p.provider_player_id = a.provider_player_id
++                WHERE a.alias_name = ?
++                """,
++                (normalized,),
++            ).fetchall()
++            if compatible_tours:
++                alias = [row for row in alias if str(row["tour"]) in compatible_tours]
++            if len(alias) == 1:
++                row = alias[0]
++                return IdentityResolution(
++                    int(row["provider_player_id"]), str(row["canonical_name"]), "EXACT_ALIAS", 100.0
++                )
++
++            exact_name = connection.execute(
++                """
++                SELECT provider_player_id, canonical_name, tour
++                FROM players
++                WHERE normalized_name = ?
++                """,
++                (normalized,),
++            ).fetchall()
++            if compatible_tours:
++                exact_name = [row for row in exact_name if str(row["tour"]) in compatible_tours]
++            if len(exact_name) == 1:
++                row = exact_name[0]
++                return IdentityResolution(
++                    int(row["provider_player_id"]), str(row["canonical_name"]), "EXACT_NAME", 100.0
++                )
++
++            rows = connection.execute(
++                """
++                SELECT provider_player_id, canonical_name, normalized_name, tour
++                FROM players
++                """
++            ).fetchall()
++            if compatible_tours:
++                rows = [row for row in rows if str(row["tour"]) in compatible_tours]
++            choices = {
++                f"{int(row['provider_player_id'])}:{str(row['normalized_name'])}": row
++                for row in rows
++            }
++            ranked = process.extract(
++                normalized,
++                list(choices),
++                scorer=lambda query, choice, **_: fuzz.WRatio(query, choice.split(":", 1)[1]),
++                limit=2,
++            )
++            best_row = None
++            best_score = None
++            second_score = None
++            if ranked:
++                best_key, best_score, _ = ranked[0]
++                best_row = choices[best_key]
++                second_score = ranked[1][1] if len(ranked) > 1 else 0.0
++            if (
++                best_row is not None
++                and float(best_score) >= float(fuzzy_threshold)
++                and float(best_score) - float(second_score or 0.0) >= float(minimum_margin)
++            ):
++                player_id = int(best_row["provider_player_id"])
++                canonical_name = str(best_row["canonical_name"])
++                connection.execute(
++                    """
++                    INSERT INTO player_aliases(
++                        alias_name, display_alias, provider_player_id, source,
++                        confidence, verified, created_at
++                    ) VALUES (?,?,?,?,?,?,?)
++                    ON CONFLICT(alias_name) DO NOTHING
++                    """,
++                    (
++                        normalized,
++                        str(raw_name).strip(),
++                        player_id,
++                        str(source),
++                        float(best_score),
++                        0,
++                        _utc_now(),
++                    ),
++                )
++                return IdentityResolution(
++                    player_id, canonical_name, "FUZZY_AUTO", float(best_score)
++                )
++
++            review_id = None
++            if queue_unresolved:
++                review_id = self._queue_review_connection(
++                    connection,
++                    source=source,
++                    raw_name=raw_name,
++                    tour=tour,
++                    suggested_player_id=(int(best_row["provider_player_id"]) if best_row else None),
++                    suggested_name=(str(best_row["canonical_name"]) if best_row else None),
++                    score=(float(best_score) if best_score is not None else None),
++                )
++        return IdentityResolution(
++            None,
++            None,
++            "REVIEW_REQUIRED" if queue_unresolved else "UNRESOLVED",
++            float(best_score) if best_score is not None else None,
++            review_id,
++        )
++
++    def _queue_review_connection(
++        self,
++        connection: sqlite3.Connection,
++        *,
++        source: str,
++        raw_name: str,
++        tour: str,
++        suggested_player_id: int | None,
++        suggested_name: str | None,
++        score: float | None,
++    ) -> int:
++        normalized = normalize_name(raw_name)
++        connection.execute(
++            """
++            INSERT INTO alias_review_queue(
++                source, raw_name, normalized_name, tour, suggested_player_id,
++                suggested_name, fuzzy_score, status, created_at
++            ) VALUES (?,?,?,?,?,?,?,?,?)
++            ON CONFLICT(source, normalized_name, tour, status) DO UPDATE SET
++                raw_name=excluded.raw_name,
++                suggested_player_id=excluded.suggested_player_id,
++                suggested_name=excluded.suggested_name,
++                fuzzy_score=excluded.fuzzy_score
++            """,
++            (
++                str(source),
++                str(raw_name).strip(),
++                normalized,
++                str(tour or "").upper(),
++                suggested_player_id,
++                suggested_name,
++                score,
++                "PENDING",
++                _utc_now(),
++            ),
++        )
++        row = connection.execute(
++            """
++            SELECT review_id FROM alias_review_queue
++            WHERE source = ? AND normalized_name = ? AND tour = ? AND status = 'PENDING'
++            """,
++            (str(source), normalized, str(tour or "").upper()),
++        ).fetchone()
++        return int(row["review_id"])
++
++    def pending_reviews(self, *, limit: int = 200) -> list[dict]:
++        with _connection(self.path) as connection:
++            rows = connection.execute(
++                """
++                SELECT * FROM alias_review_queue
++                WHERE status = 'PENDING'
++                ORDER BY created_at, review_id
++                LIMIT ?
++                """,
++                (int(limit),),
++            ).fetchall()
++        return [dict(row) for row in rows]
++
++    def resolve_review(self, review_id: int, provider_player_id: int) -> None:
++        with _connection(self.path) as connection:
++            review = connection.execute(
++                "SELECT * FROM alias_review_queue WHERE review_id = ?",
++                (int(review_id),),
++            ).fetchone()
++            if review is None:
++                raise KeyError(f"Unknown alias review id {review_id}")
++            player = connection.execute(
++                "SELECT canonical_name FROM players WHERE provider_player_id = ?",
++                (int(provider_player_id),),
++            ).fetchone()
++            if player is None:
++                raise KeyError(f"Unknown provider player id {provider_player_id}")
++            alias_key = normalize_name(str(review["raw_name"]))
++            existing = connection.execute(
++                "SELECT provider_player_id FROM player_aliases WHERE alias_name = ?",
++                (alias_key,),
++            ).fetchone()
++            if existing is not None and int(existing["provider_player_id"]) != int(provider_player_id):
++                raise ValueError("Alias is already assigned to a different player")
++            connection.execute(
++                """
++                INSERT INTO player_aliases(
++                    alias_name, display_alias, provider_player_id, source,
++                    confidence, verified, created_at
++                ) VALUES (?,?,?,?,?,?,?)
++                ON CONFLICT(alias_name) DO UPDATE SET
++                    provider_player_id=excluded.provider_player_id,
++                    source=excluded.source,
++                    confidence=excluded.confidence,
++                    verified=1
++                """,
++                (
++                    alias_key,
++                    str(review["raw_name"]),
++                    int(provider_player_id),
++                    str(review["source"]),
++                    100.0,
++                    1,
++                    _utc_now(),
++                ),
++            )
++            connection.execute(
++                """
++                UPDATE alias_review_queue
++                SET status = 'RESOLVED', resolved_at = ?,
++                    suggested_player_id = ?, suggested_name = ?, fuzzy_score = 100.0
++                WHERE review_id = ?
++                """,
++                (_utc_now(), int(provider_player_id), str(player["canonical_name"]), int(review_id)),
++            )
++
++    def search_players(self, query: str = "", *, tour: str = "", limit: int = 50) -> list[dict]:
++        normalized = normalize_name(query)
++        compatible_tours = self.compatible_tours(tour)
++        with _connection(self.path) as connection:
++            rows = connection.execute(
++                """
++                SELECT provider_player_id, canonical_name, normalized_name, dob, nationality, tour
++                FROM players
++                ORDER BY canonical_name
++                """
++            ).fetchall()
++        output = []
++        for row in rows:
++            if compatible_tours and str(row["tour"]) not in compatible_tours:
++                continue
++            if normalized and normalized not in str(row["normalized_name"]):
++                continue
++            data = dict(row)
++            data.pop("normalized_name", None)
++            output.append(data)
++            if len(output) >= int(limit):
++                break
++        return output
++
++    def player_frame(self) -> list[dict]:
++        with _connection(self.path) as connection:
++            rows = connection.execute(
++                """
++                SELECT provider_player_id, canonical_name, normalized_name,
++                       dob, nationality, tour
++                FROM players
++                ORDER BY provider_player_id
++                """
++            ).fetchall()
++        return [dict(row) for row in rows]
++
++    def upsert_tournament(
++        self,
++        *,
++        provider: str,
++        provider_tournament_id: str | int,
++        canonical_name: str,
++        tour: str,
++        surface: str,
++        tier: str,
++        source_updated_at: str | None = None,
++    ) -> None:
++        surface = str(surface or "Unknown").title()
++        if surface not in {"Hard", "Clay", "Grass", "Carpet", "Unknown"}:
++            surface = "Unknown"
++        now = _utc_now()
++        with _connection(self.path) as connection:
++            connection.execute(
++                """
++                INSERT INTO tournament_registry(
++                    provider, provider_tournament_id, canonical_name,
++                    normalized_name, tour, surface, tier, source_updated_at,
++                    created_at, updated_at
++                ) VALUES (?,?,?,?,?,?,?,?,?,?)
++                ON CONFLICT(provider, provider_tournament_id, tour) DO UPDATE SET
++                    canonical_name=excluded.canonical_name,
++                    normalized_name=excluded.normalized_name,
++                    surface=CASE WHEN excluded.surface = 'Unknown'
++                                 THEN tournament_registry.surface ELSE excluded.surface END,
++                    tier=excluded.tier,
++                    source_updated_at=COALESCE(excluded.source_updated_at, tournament_registry.source_updated_at),
++                    updated_at=excluded.updated_at
++                """,
++                (
++                    str(provider),
++                    str(provider_tournament_id),
++                    str(canonical_name),
++                    normalize_name(canonical_name),
++                    str(tour or "").upper(),
++                    surface,
++                    str(tier),
++                    source_updated_at,
++                    now,
++                    now,
++                ),
++            )
++
++    def resolve_tournament(
++        self,
++        *,
++        provider: str,
++        provider_tournament_id: str | int,
++        tournament_name: str,
++        tour: str,
++    ) -> dict[str, str] | None:
++        with _connection(self.path) as connection:
++            row = connection.execute(
++                """
++                SELECT surface, tier, canonical_name
++                FROM tournament_registry
++                WHERE provider = ? AND provider_tournament_id = ? AND tour = ?
++                """,
++                (str(provider), str(provider_tournament_id), str(tour or "").upper()),
++            ).fetchone()
++            if row is None:
++                row = connection.execute(
++                    """
++                    SELECT surface, tier, canonical_name
++                    FROM tournament_registry
++                    WHERE provider = ? AND normalized_name = ? AND tour = ?
++                    ORDER BY updated_at DESC LIMIT 1
++                    """,
++                    (str(provider), normalize_name(tournament_name), str(tour or "").upper()),
++                ).fetchone()
++        return dict(row) if row is not None else None
+--- a/src/tennis_predictor/ui/identity_admin.py
++++ b/src/tennis_predictor/ui/identity_admin.py
+@@ -0,0 +1,63 @@
++from __future__ import annotations
++
++import streamlit as st
++
++from tennis_predictor.storage import IdentityStore
++from tennis_predictor.ui.data import load_app_config
++
++
++def render_identity_review() -> None:
++    st.markdown(
++        """
++        <div class="hero-card">
++          <div class="eyebrow">DATA QUALITY CONTROL</div>
++          <h1>Alias Review Queue</h1>
++          <p>Resolve unmatched Polymarket or historical names to immutable API-Tennis player IDs.</p>
++        </div>
++        """,
++        unsafe_allow_html=True,
++    )
++    config = load_app_config()
++    store = IdentityStore(config.history.identity_database_path)
++    pending = store.pending_reviews(limit=200)
++    st.metric("Pending aliases", len(pending))
++    if not pending:
++        st.success("No unresolved aliases are waiting for review.")
++        return
++
++    index = st.number_input(
++        "Queue position",
++        min_value=1,
++        max_value=len(pending),
++        value=1,
++        step=1,
++    )
++    item = pending[int(index) - 1]
++    st.subheader(str(item["raw_name"]))
++    st.caption(
++        f"Source: {item['source']} · Tour: {item['tour'] or 'unknown'} · "
++        f"Suggested: {item.get('suggested_name') or 'none'} · "
++        f"Score: {item.get('fuzzy_score') or 'n/a'}"
++    )
++
++    query = st.text_input("Search canonical players", value=str(item["raw_name"]))
++    candidates = store.search_players(query, tour=str(item.get("tour") or ""), limit=50)
++    if not candidates and query:
++        candidates = store.search_players("", tour=str(item.get("tour") or ""), limit=50)
++    if not candidates:
++        st.warning("No candidate player IDs are available. Run the historical backfill first.")
++        return
++
++    labels = {
++        f"{row['canonical_name']} · ID {row['provider_player_id']} · {row['tour']}": row
++        for row in candidates
++    }
++    selected = st.selectbox("Map alias to", list(labels))
++    row = labels[selected]
++    if st.button("Confirm alias mapping", type="primary", use_container_width=True):
++        store.resolve_review(int(item["review_id"]), int(row["provider_player_id"]))
++        st.success(
++            f"Mapped {item['raw_name']} to {row['canonical_name']} "
++            f"(API-Tennis ID {row['provider_player_id']})."
++        )
++        st.rerun()
+--- a/streamlit_app.py
++++ b/streamlit_app.py
+@@ -15,6 +15,7 @@
+     render_today_matches,
+ )
+ from tennis_predictor.ui.theme import apply_global_styles, render_sidebar
++from tennis_predictor.ui.identity_admin import render_identity_review
+ 
+ st.set_page_config(
+     page_title="Tennis Edge Lab",
+@@ -55,6 +56,7 @@
+         st.Page(render_paper_bets, title="Paper-Bet Tracker", icon=":material/account_balance_wallet:"),
+     ],
+     "Research": [
++        st.Page(render_identity_review, title="Alias Review Queue", icon=":material/person_search:"),
+         st.Page(render_backtest_lab, title="Backtest Lab", icon=":material/query_stats:"),
+         st.Page(render_match_explorer, title="Match Explorer", icon=":material/table_view:"),
+         st.Page(render_model_guide, title="Model Guide", icon=":material/menu_book:"),
+--- a/tests/test_api_history_parser.py
++++ b/tests/test_api_history_parser.py
+@@ -0,0 +1,49 @@
++from tennis_predictor.data.historical_backfill import ApiTennisHistoryParser
++from tennis_predictor.storage.identity_store import IdentityStore
++
++
++def _event(**overrides):
++    item = {
++        "event_key": "1001",
++        "event_date": "2026-07-10",
++        "event_time": "14:30",
++        "event_first_player": "A. Player",
++        "first_player_key": "101",
++        "event_second_player": "B. Player",
++        "second_player_key": "202",
++        "event_winner": "First Player",
++        "event_status": "Finished",
++        "event_type_type": "Itf Women Singles",
++        "tournament_name": "ITF W15 Example Women",
++        "tournament_key": "777",
++        "tournament_round": "Qualification 1",
++        "event_qualification": "True",
++        "scores": [{"score_first": "6", "score_second": "4"}],
++    }
++    item.update(overrides)
++    return item
++
++
++def test_unknown_surface_is_retained_and_id_first(tmp_path):
++    parser = ApiTennisHistoryParser(IdentityStore(tmp_path / "identity.db"))
++    row, reason = parser.parse_item(_event())
++    assert reason is None
++    assert row["surface"] == "Unknown"
++    assert row["surface_known"] is False
++    assert row["competition_segment"] == "ITF_WOMEN"
++    assert row["is_qualifying"] is True
++    assert row["player1_id"].startswith("api_tennis:")
++    assert row["player2_id"].startswith("api_tennis:")
++
++
++def test_retirement_walkover_and_default_are_flagged(tmp_path):
++    parser = ApiTennisHistoryParser(IdentityStore(tmp_path / "identity.db"))
++    retired, _ = parser.parse_item(_event(event_status="Retired"))
++    walkover, _ = parser.parse_item(_event(event_key="1002", event_status="Walkover"))
++    defaulted, _ = parser.parse_item(_event(event_key="1003", event_status="Defaulted"))
++    assert retired["retirement"] is True
++    assert retired["game_form_eligible"] is False
++    assert walkover["walkover"] is True
++    assert walkover["game_form_eligible"] is False
++    assert defaulted["defaulted"] is True
++    assert defaulted["game_form_eligible"] is False
+--- a/tests/test_history_backfill_archive.py
++++ b/tests/test_history_backfill_archive.py
+@@ -0,0 +1,59 @@
++import json
++from pathlib import Path
++
++from tennis_predictor.data.historical_backfill import (
++    ApiTennisRawDownloader,
++    iter_seven_day_windows,
++)
++
++
++class _Response:
++    def __init__(self, payload):
++        self._payload = payload
++
++    def raise_for_status(self):
++        return None
++
++    def json(self):
++        return self._payload
++
++
++class _Session:
++    def __init__(self):
++        self.calls = []
++
++    def get(self, url, params, timeout):
++        self.calls.append(dict(params))
++        return _Response({"success": 1, "result": [{"event_key": params["date_start"]}]})
++
++
++def test_seven_day_windows_are_inclusive():
++    windows = list(iter_seven_day_windows("2023-01-01", "2023-01-15"))
++    assert [(a.date().isoformat(), b.date().isoformat()) for a, b in windows] == [
++        ("2023-01-01", "2023-01-07"),
++        ("2023-01-08", "2023-01-14"),
++        ("2023-01-15", "2023-01-15"),
++    ]
++
++
++def test_downloader_archives_raw_payload_before_parse(tmp_path, monkeypatch):
++    monkeypatch.setenv("API_TENNIS_KEY", "test-key")
++    session = _Session()
++    downloader = ApiTennisRawDownloader(
++        session=session,
++        sleep_between_requests=0,
++        max_retries=0,
++    )
++    report = downloader.download(
++        start_date="2023-01-01",
++        end_date="2023-01-08",
++        raw_root=tmp_path,
++    )
++    assert report.downloaded_windows == 2
++    files = sorted(Path(tmp_path).glob("**/*.json"))
++    assert len(files) == 2
++    payload = json.loads(files[0].read_text())
++    assert payload["success"] == 1
++    assert "APIkey" not in files[0].read_text()
++    assert session.calls[0]["date_start"] == "2023-01-01"
++    assert session.calls[0]["date_stop"] == "2023-01-07"
+--- a/tests/test_identity_store_id_first.py
++++ b/tests/test_identity_store_id_first.py
+@@ -0,0 +1,52 @@
++from tennis_predictor.storage.identity_store import IdentityStore
++
++
++def test_api_player_id_unifies_spelling_variants(tmp_path):
++    store = IdentityStore(tmp_path / "identity.db")
++    store.upsert_player(
++        123,
++        canonical_name="Ya-Yi Yang",
++        tour="ITF_W",
++        aliases=["Ya Yi Yang", "Yang Ya Yi"],
++    )
++    store.link_source_id(
++        source="api_tennis",
++        source_player_id="123",
++        provider_player_id=123,
++    )
++
++    exact = store.resolve_name(
++        "Ya Yi Yang", source="polymarket", tour="ITF_W"
++    )
++    reverse = store.resolve_name(
++        "Yang Ya Yi", source="polymarket", tour="ITF_W"
++    )
++    source_id = store.resolve_source_id(source="api_tennis", source_player_id="123")
++
++    assert exact.provider_player_id == 123
++    assert reverse.provider_player_id == 123
++    assert source_id.provider_player_id == 123
++    assert store.model_player_id(123) == "api_tennis:123"
++
++
++def test_unresolved_name_enters_review_queue(tmp_path):
++    store = IdentityStore(tmp_path / "identity.db")
++    store.upsert_player(1, canonical_name="Alice Example", tour="WTA")
++    resolution = store.resolve_name(
++        "Completely Different",
++        source="polymarket",
++        tour="WTA",
++        fuzzy_threshold=99,
++    )
++    assert not resolution.resolved
++    assert resolution.status == "REVIEW_REQUIRED"
++    assert len(store.pending_reviews()) == 1
++
++
++def test_main_tour_lookup_can_resolve_itf_identity(tmp_path):
++    store = IdentityStore(tmp_path / "identity.db")
++    store.upsert_player(321, canonical_name="Lower Tier Player", tour="ITF_W")
++    resolution = store.resolve_name(
++        "Lower Tier Player", source="polymarket", tour="WTA"
++    )
++    assert resolution.provider_player_id == 321
+--- a/tests/test_quality_one_recent_player.py
++++ b/tests/test_quality_one_recent_player.py
+@@ -0,0 +1,39 @@
++from types import SimpleNamespace
++
++import pandas as pd
++
++from tennis_predictor.quality import evaluate_match_sample_quality
++
++
++def _state(last_date):
++    return SimpleNamespace(
++        total_matches=25,
++        surface_matches={"Hard": 7},
++        last_date=pd.Timestamp(last_date),
++    )
++
++
++def test_sufficient_when_at_least_one_player_is_recent():
++    quality = evaluate_match_sample_quality(
++        _state("2026-07-10"),
++        _state("2025-01-01"),
++        player1="Recent Player",
++        player2="Stale Player",
++        surface="Hard",
++        match_date="2026-07-16",
++    )
++    assert quality.status == "SUFFICIENT"
++    assert quality.can_bet is True
++
++
++def test_limited_when_neither_player_is_recent():
++    quality = evaluate_match_sample_quality(
++        _state("2025-01-01"),
++        _state("2025-02-01"),
++        player1="Stale One",
++        player2="Stale Two",
++        surface="Hard",
++        match_date="2026-07-16",
++    )
++    assert quality.status == "LIMITED"
++    assert quality.can_bet is False
+--- a/tests/test_segmented_metrics_gate.py
++++ b/tests/test_segmented_metrics_gate.py
+@@ -0,0 +1,47 @@
++import pandas as pd
++
++from tennis_predictor.backtest.metrics import evaluate_predictions
++from tennis_predictor.services.candidate_training import evaluate_model_gate
++
++
++def _predictions(probabilities, actual, segment):
++    n = len(probabilities)
++    return pd.DataFrame({
++        "model": ["boosted"] * n,
++        "tour": ["ATP"] * n,
++        "tier": ["Challenger"] * n,
++        "competition_segment": [segment] * n,
++        "actual": actual,
++        "probability": probabilities,
++        "eligible_with_filters": [True] * n,
++    })
++
++
++def test_metrics_include_required_competition_segment_and_ece():
++    predictions = _predictions([0.8, 0.7, 0.2, 0.3], [1, 1, 0, 0], "ATP_CHALLENGER")
++    metrics = evaluate_predictions(predictions, bootstrap_samples=10)
++    row = metrics[
++        metrics["segment_type"].eq("competition_segment")
++        & metrics["segment"].eq("boosted|ATP_CHALLENGER")
++        & metrics["filter_view"].eq("all")
++    ].iloc[0]
++    assert row["matches"] == 4
++    assert row["ece"] >= 0
++
++
++def test_gate_requires_better_log_loss_and_calibration():
++    rows_candidate = []
++    rows_production = []
++    for segment in ("ATP_CHALLENGER", "ITF_MEN", "ITF_WOMEN"):
++        rows_candidate.append({
++            "filter_view": "all", "segment_type": "competition_segment",
++            "segment": f"boosted|{segment}", "matches": 250,
++            "log_loss": 0.55, "ece": 0.04,
++        })
++        rows_production.append({
++            "filter_view": "all", "segment_type": "competition_segment",
++            "segment": f"boosted|{segment}", "matches": 250,
++            "log_loss": 0.60, "ece": 0.05,
++        })
++    gate = evaluate_model_gate(pd.DataFrame(rows_candidate), pd.DataFrame(rows_production))
++    assert gate.status == "PASS"
+--- a/tests/test_tennis_data_loader.py
++++ b/tests/test_tennis_data_loader.py
+@@ -0,0 +1,23 @@
++import pandas as pd
++
++from tennis_predictor.data.tennis_data import TennisDataLoader
++
++
++def test_tennis_data_csv_normalizes_historical_odds(tmp_path):
++    source = pd.DataFrame([
++        {
++            "Date": "16/07/2026",
++            "Tournament": "Lincoln Challenger",
++            "Winner": "Colton Smith",
++            "Loser": "Hayato Matsuoka",
++            "B365W": 1.30,
++            "B365L": 3.40,
++        }
++    ])
++    source.to_csv(tmp_path / "atp_2026.csv", index=False)
++    snapshots, report = TennisDataLoader(tmp_path).load()
++    assert report.files == 1
++    assert report.odds_rows == 1
++    assert snapshots.iloc[0]["player1"] == "Colton Smith"
++    assert snapshots.iloc[0]["decimal_odds1"] == 1.30
++    assert snapshots.iloc[0]["is_closing"]

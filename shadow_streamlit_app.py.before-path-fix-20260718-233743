@@ -1,0 +1,74 @@
+"""Launch the dashboard using isolated candidate artifacts."""
+
+from dataclasses import fields, is_dataclass, replace
+from pathlib import Path
+
+import tennis_predictor.ui.pages as pages
+from tennis_predictor.ui.paths import DashboardPaths
+
+
+def shadow_paths() -> DashboardPaths:
+    base = DashboardPaths()
+
+    if not is_dataclass(base):
+        raise RuntimeError(
+            "DashboardPaths is not a dataclass."
+        )
+
+    replacements = {
+        "model": Path(
+            "outputs/shadow/candidate_live.joblib"
+        ),
+        "predictions": Path(
+            "outputs/candidate-cleaned-kaggle-2020/"
+            "predictions.parquet"
+        ),
+        "metrics": Path(
+            "outputs/candidate-cleaned-kaggle-2020/"
+            "metrics.csv"
+        ),
+        "calibration": Path(
+            "outputs/candidate-cleaned-kaggle-2020/"
+            "calibration_curves.csv"
+        ),
+        "features": Path(
+            "data/processed/features_full.parquet"
+        ),
+        "matches": Path(
+            "data/shadow/candidate_matches.parquet"
+        ),
+        "processed": Path(
+            "data/shadow/candidate_matches.parquet"
+        ),
+    }
+
+    available = {
+        field.name
+        for field in fields(base)
+    }
+
+    updates = {
+        name: path
+        for name, path in replacements.items()
+        if name in available
+    }
+
+    if "model" not in updates:
+        raise RuntimeError(
+            "Could not override the dashboard model path. "
+            f"Available fields: {sorted(available)}"
+        )
+
+    return replace(base, **updates)
+
+
+pages._paths = shadow_paths
+
+source = Path("streamlit_app.py")
+code = compile(
+    source.read_text(),
+    str(source),
+    "exec",
+)
+
+exec(code, globals(), globals())

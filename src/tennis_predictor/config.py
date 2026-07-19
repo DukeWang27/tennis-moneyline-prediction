@@ -84,6 +84,75 @@ class OddsConfig:
     bookmakers: str | None = None
 
 
+
+
+@dataclass(slots=True)
+class LiveDataConfig:
+    api_tennis_key_env: str = "API_TENNIS_KEY"
+    timezone: str = "America/New_York"
+    backfill_start: str = "2026-06-08"
+    tournament_registry_path: str = "data/metadata/tournaments.csv"
+    player_aliases_path: str = "data/metadata/player_aliases.csv"
+    unresolved_fixtures_path: str = "data/live/unresolved_fixtures.csv"
+    upcoming_days: int = 3
+    replay_days: int = 7
+    polymarket_refresh_seconds: int = 30
+    polymarket_market_pages: int = 4
+    polymarket_page_size: int = 100
+    polymarket_max_markets_per_day: int = 60
+    polymarket_book_batch_size: int = 50
+    cold_start_min_matches: int = 8
+    recommended_prediction_matches: int = 20
+    recommended_surface_matches: int = 5
+    max_player_staleness_days: int = 120
+
+
+@dataclass(slots=True)
+class KaggleDataConfig:
+    enabled: bool = True
+    cli_executable: str = "kaggle"
+    raw_root: str = "data/raw/kaggle"
+    normalized_root: str = "data/normalized/kaggle"
+    candidate_matches_database_path: str = "data/candidate_matches.db"
+    atp_daily_slug: str = "dissfya/atp-tennis-2000-2023daily-pull"
+    wta_daily_slug: str = "dissfya/wta-tennis-2007-2023-daily-update"
+    huge_tennis_slug: str = "guillemservera/tennis"
+    command_timeout_seconds: int = 1200
+    accept_schema_change: bool = False
+
+
+@dataclass(slots=True)
+class HistoricalDataConfig:
+    start_date: str = "2023-01-01"
+    raw_api_tennis_dir: str = "data/raw/api_tennis"
+    normalized_api_tennis_path: str = "data/normalized/api_tennis_matches.parquet"
+    unresolved_api_tennis_path: str = "data/normalized/api_tennis_unresolved.csv"
+    tennis_data_directory: str | None = None
+    tennis_data_snapshots_path: str = "data/normalized/tennis_data_odds.parquet"
+    identity_database_path: str = "data/identity.db"
+    merged_matches_path: str = "data/processed/matches_full.parquet"
+    chronological_features_path: str = "data/processed/features_full.parquet"
+    candidate_output_dir: str = "outputs/candidate"
+    fuzzy_match_threshold: float = 96.0
+    fuzzy_minimum_margin: float = 3.0
+    max_retries: int = 4
+    retry_backoff_seconds: float = 2.0
+    sleep_between_requests: float = 0.25
+    minimum_gate_segment_matches: int = 200
+    gate_bootstrap_samples: int = 2000
+    gate_confidence: float = 0.95
+
+
+
+@dataclass(slots=True)
+class PaperTradingConfig:
+    database_path: str = "data/paper_trading.db"
+    default_stake: float = 5.0
+    min_edge: float = 0.03
+    kelly_multiplier: float = 0.25
+    max_kelly_fraction: float = 0.05
+
+
 @dataclass(slots=True)
 class AppConfig:
     data: DataConfig = field(default_factory=DataConfig)
@@ -92,6 +161,10 @@ class AppConfig:
     model: ModelConfig = field(default_factory=ModelConfig)
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     odds: OddsConfig = field(default_factory=OddsConfig)
+    live_data: LiveDataConfig = field(default_factory=LiveDataConfig)
+    history: HistoricalDataConfig = field(default_factory=HistoricalDataConfig)
+    kaggle: KaggleDataConfig = field(default_factory=KaggleDataConfig)
+    paper_trading: PaperTradingConfig = field(default_factory=PaperTradingConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":
@@ -104,9 +177,26 @@ class AppConfig:
             model=ModelConfig(**raw.get("model", {})),
             backtest=BacktestConfig(**raw.get("backtest", {})),
             odds=OddsConfig(**raw.get("odds", {})),
+            live_data=LiveDataConfig(**raw.get("live_data", {})),
+            history=HistoricalDataConfig(**raw.get("history", {})),
+            kaggle=KaggleDataConfig(**raw.get("kaggle", {})),
+            paper_trading=PaperTradingConfig(**raw.get("paper_trading", {})),
         )
 
     def ensure_directories(self) -> None:
         Path(self.data.cache_dir).mkdir(parents=True, exist_ok=True)
         Path(self.data.processed_path).parent.mkdir(parents=True, exist_ok=True)
         Path(self.filters.context_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.live_data.tournament_registry_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.live_data.player_aliases_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.live_data.unresolved_fixtures_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.history.raw_api_tennis_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.history.normalized_api_tennis_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.history.tennis_data_snapshots_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.history.identity_database_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.history.merged_matches_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.history.candidate_output_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.kaggle.raw_root).mkdir(parents=True, exist_ok=True)
+        Path(self.kaggle.normalized_root).mkdir(parents=True, exist_ok=True)
+        Path(self.kaggle.candidate_matches_database_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.paper_trading.database_path).parent.mkdir(parents=True, exist_ok=True)

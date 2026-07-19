@@ -1,0 +1,73 @@
+[source-filter] Retained 57,902/57,902 rows inside the requested date window
+[identity] Starting canonicalization of 57,902 match rows
+[identity] 5,000/57,902 rows | unique identities=371 | cache hits=9,629 | cache misses=371 | resolved matches=5,000 | unresolved matches=0
+[identity] 10,000/57,902 rows | unique identities=856 | cache hits=19,144 | cache misses=856 | resolved matches=10,000 | unresolved matches=0
+[identity] 15,000/57,902 rows | unique identities=1,091 | cache hits=28,909 | cache misses=1,091 | resolved matches=15,000 | unresolved matches=0
+[identity] 20,000/57,902 rows | unique identities=1,960 | cache hits=38,040 | cache misses=1,960 | resolved matches=20,000 | unresolved matches=0
+[identity] 25,000/57,902 rows | unique identities=2,835 | cache hits=47,165 | cache misses=2,835 | resolved matches=25,000 | unresolved matches=0
+[identity] 30,000/57,902 rows | unique identities=3,345 | cache hits=56,655 | cache misses=3,345 | resolved matches=30,000 | unresolved matches=0
+[identity] 35,000/57,902 rows | unique identities=3,721 | cache hits=66,279 | cache misses=3,721 | resolved matches=35,000 | unresolved matches=0
+[identity] 40,000/57,902 rows | unique identities=3,836 | cache hits=76,164 | cache misses=3,836 | resolved matches=40,000 | unresolved matches=0
+[identity] 45,000/57,902 rows | unique identities=4,060 | cache hits=85,940 | cache misses=4,060 | resolved matches=45,000 | unresolved matches=0
+[identity] 50,000/57,902 rows | unique identities=4,182 | cache hits=95,818 | cache misses=4,182 | resolved matches=50,000 | unresolved matches=0
+[identity] 55,000/57,902 rows | unique identities=4,222 | cache hits=105,778 | cache misses=4,222 | resolved matches=55,000 | unresolved matches=0
+[identity] 57,902/57,902 rows | unique identities=4,254 | cache hits=111,550 | cache misses=4,254 | resolved matches=57,902 | unresolved matches=0
+[persist] Copied 4,254 canonical players into data/candidate_matches-cleaned-kaggle.db
+[persist] Writing 57,902 canonical matches
+{
+  "matches_path": "data/processed/matches_cleaned_kaggle.parquet",
+  "features_path": "data/processed/features_full.parquet",
+  "predictions_path": "outputs/candidate-cleaned-kaggle/predictions.parquet",
+  "metrics_path": "outputs/candidate-cleaned-kaggle/metrics.csv",
+  "calibration_path": "outputs/candidate-cleaned-kaggle/calibration_curves.csv",
+  "candidate_model_path": "outputs/candidate-cleaned-kaggle/trained_system_candidate.joblib",
+  "unresolved_path": "outputs/candidate-cleaned-kaggle/identity_unresolved.parquet",
+  "assembly": {
+    "input_rows": 57902,
+    "resolved_rows": 57902,
+    "unresolved_rows": 0,
+    "unique_matches": 57902,
+    "duplicate_source_rows_merged": 0,
+    "by_source": {
+      "cleaned_kaggle_unified": 57902
+    },
+    "by_segment": {
+      "ATP_MAIN": 35976,
+      "ATP_CHALLENGER": 13266,
+      "WTA_MAIN": 8660
+    }
+  },
+  "model_gate": {
+    "status": "INCONCLUSIVE",
+    "required_segments": [
+      "ATP_CHALLENGER",
+      "ITF_MEN",
+      "ITF_WOMEN"
+    ],
+    "passed_segments": [],
+    "failed_segments": [],
+    "inconclusive_segments": [
+      "ATP_CHALLENGER",
+      "ITF_MEN",
+      "ITF_WOMEN"
+    ],
+    "comparisons": [
+      {
+        "segment": "ATP_CHALLENGER",
+        "status": "INCONCLUSIVE",
+        "reason": "no shared match key"
+      },
+      {
+        "segment": "ITF_MEN",
+        "status": "INCONCLUSIVE",
+        "reason": "no shared match key"
+      },
+      {
+        "segment": "ITF_WOMEN",
+        "status": "INCONCLUSIVE",
+        "reason": "no shared match key"
+      }
+    ]
+  },
+  "promoted": false
+}

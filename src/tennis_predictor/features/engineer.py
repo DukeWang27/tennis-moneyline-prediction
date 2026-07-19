@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from tennis_predictor.config import FeatureConfig, FilterConfig
@@ -19,13 +18,17 @@ class FeatureEngineer:
     def transform(self, matches: pd.DataFrame, *, reset: bool = True) -> pd.DataFrame:
         if reset:
             self.state = TennisState(self.feature_config, self.filter_config)
-        ordered = matches.sort_values(["date", "event_date", "match_num", "match_id"]).copy()
+        ordered = matches.copy()
+        if "chronology_ts" not in ordered:
+            ordered["chronology_ts"] = pd.to_datetime(ordered["date"], errors="coerce")
+        ordered["chronology_ts"] = pd.to_datetime(ordered["chronology_ts"], errors="coerce")
+        ordered = ordered.sort_values(["chronology_ts", "date", "event_date", "match_num", "match_id"]).copy()
         rows: list[dict] = []
         for _, match in ordered.iterrows():
             features = self.state.snapshot(
                 str(match["player1_id"]),
                 str(match["player2_id"]),
-                date=pd.Timestamp(match["date"]),
+                date=pd.Timestamp(match.get("chronology_ts", match["date"])),
                 surface=str(match["surface"]),
                 tier=str(match["tier"]),
                 player1_age=match.get("player1_age"),
@@ -38,7 +41,7 @@ class FeatureEngineer:
             features["pre_slam_rest_risk_player2"] = pre_slam
             record = match.to_dict()
             record.update(features)
-            if bool(match.get("walkover", False)):
+            if bool(match.get("walkover", False)) or bool(match.get("defaulted", False)) or bool(match.get("void", False)):
                 record["outcome_weight"] = self.feature_config.walkover_elo_weight
             elif bool(match.get("retirement", False)):
                 record["outcome_weight"] = self.feature_config.retirement_elo_weight
@@ -47,13 +50,15 @@ class FeatureEngineer:
             rows.append(record)
             self.state.update(match)
         output = pd.DataFrame(rows)
+        if output.empty:
+            return output
         output["tour_code"] = output["tour"].map({"ATP": 0, "WTA": 1}).fillna(2).astype(int)
         output["rank_diff"] = pd.to_numeric(output.get("player2_rank"), errors="coerce") - pd.to_numeric(output.get("player1_rank"), errors="coerce")
         output["rank_missing1"] = output.get("player1_rank").isna().astype(int)
         output["rank_missing2"] = output.get("player2_rank").isna().astype(int)
         output["date_estimated_numeric"] = output["date_is_estimated"].astype(int)
         output = FilterEngine.add_eligibility_views(output)
-        return output.sort_values(["date", "match_id"]).reset_index(drop=True)
+        return output.sort_values(["chronology_ts", "date", "match_id"]).reset_index(drop=True)
 
     @staticmethod
     def numeric_feature_columns() -> list[str]:

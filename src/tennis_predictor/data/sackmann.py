@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Iterable
 
@@ -14,9 +17,22 @@ from tennis_predictor.config import DataConfig
 
 LOGGER = logging.getLogger(__name__)
 
+# The original upstream repositories may be unavailable. These maintained mirrors
+# preserve the same yearly Sackmann CSV schema. Override them with environment
+# variables when you maintain your own attributable mirror.
+REPOSITORY_URLS = {
+    "ATP": os.getenv("TENNIS_ATP_REPO_URL", "https://github.com/Kadantte/tennis_atp.git"),
+    "WTA": os.getenv("TENNIS_WTA_REPO_URL", "https://github.com/nonkul/tennis_wta.git"),
+}
 BASE_URLS = {
-    "ATP": "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master",
-    "WTA": "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master",
+    "ATP": os.getenv(
+        "TENNIS_ATP_RAW_URL",
+        "https://raw.githubusercontent.com/Kadantte/tennis_atp/master",
+    ),
+    "WTA": os.getenv(
+        "TENNIS_WTA_RAW_URL",
+        "https://raw.githubusercontent.com/nonkul/tennis_wta/master",
+    ),
 }
 
 ATP_500_PATTERN = re.compile(
@@ -117,22 +133,61 @@ class SackmannLoader:
         if target.exists() and target.stat().st_size > 50 and not force:
             return target
         url = f"{BASE_URLS[tour]}/{filename}"
-        response = requests.get(url, timeout=self.config.request_timeout_seconds)
-        if response.status_code == 404:
-            LOGGER.info("No source file at %s", url)
+        try:
+            response = requests.get(url, timeout=self.config.request_timeout_seconds)
+            if response.status_code == 404:
+                LOGGER.info("No source file at %s", url)
+                return None
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            LOGGER.warning("Could not download %s: %s", url, exc)
             return None
-        response.raise_for_status()
         target.write_bytes(response.content)
         return target
+
+    def _clone_mirror(self, tour: str, force: bool = False) -> list[Path]:
+        repo_dir = self.cache_dir / "_repositories" / tour.lower()
+        if force and repo_dir.exists():
+            shutil.rmtree(repo_dir)
+        if not repo_dir.exists():
+            command = ["git", "clone", "--depth", "1", REPOSITORY_URLS[tour], str(repo_dir)]
+            try:
+                subprocess.run(command, check=True, capture_output=True, text=True)
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    "Git is required for the repository fallback. Install Git or place the yearly "
+                    f"CSV files under {self.cache_dir / tour.lower()}."
+                ) from exc
+            except subprocess.CalledProcessError as exc:
+                detail = (exc.stderr or exc.stdout or str(exc)).strip()
+                LOGGER.warning("Could not clone %s mirror: %s", tour, detail)
+                return []
+
+        copied: list[Path] = []
+        for year in range(self.config.start_year, self.config.end_year + 1):
+            for filename in self._remote_names(tour, year):
+                source = repo_dir / filename
+                if not source.exists():
+                    continue
+                target = self.cache_dir / tour.lower() / filename
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+                copied.append(target)
+        return copied
 
     def download(self, force: bool = False) -> list[Path]:
         paths: list[Path] = []
         for tour in ("ATP", "WTA"):
+            tour_paths: list[Path] = []
             for year in range(self.config.start_year, self.config.end_year + 1):
                 for filename in self._remote_names(tour, year):
                     path = self._download_one(tour, filename, force=force)
                     if path is not None:
-                        paths.append(path)
+                        tour_paths.append(path)
+            if not tour_paths:
+                LOGGER.info("Raw-file downloads failed for %s; trying a shallow Git mirror clone.", tour)
+                tour_paths = self._clone_mirror(tour, force=force)
+            paths.extend(tour_paths)
         return paths
 
     def load(self, download: bool = True, force_download: bool = False) -> pd.DataFrame:

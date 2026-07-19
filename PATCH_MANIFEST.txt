@@ -1,0 +1,35 @@
+Overlay these files onto the existing tennis-moneyline-prediction project.
+
+Modified:
+- streamlit_app.py
+- config.example.yaml
+- pyproject.toml
+- src/tennis_predictor/cli.py
+- src/tennis_predictor/config.py
+- src/tennis_predictor/pipeline.py
+- src/tennis_predictor/data/__init__.py
+- src/tennis_predictor/data/names.py
+- src/tennis_predictor/data/odds.py
+- src/tennis_predictor/features/engineer.py
+- src/tennis_predictor/features/state.py
+- src/tennis_predictor/market/__init__.py
+- src/tennis_predictor/ui/data.py
+- src/tennis_predictor/ui/pages.py
+
+New:
+- LIVE_PAPER_TRADING_UPGRADE.md
+- src/tennis_predictor/data/api_tennis.py
+- src/tennis_predictor/market/live_odds.py
+- src/tennis_predictor/services/__init__.py
+- src/tennis_predictor/services/live_data.py
+- src/tennis_predictor/storage/__init__.py
+- src/tennis_predictor/storage/paper_trading.py
+- tests/test_api_tennis_normalization.py
+- tests/test_incremental_state.py
+- tests/test_live_odds.py
+- tests/test_paper_trading.py
+
+Validation:
+- ruff check: passed
+- pytest: 11 passed
+- UI/service import smoke test: passed

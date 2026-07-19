@@ -57,3 +57,61 @@ odds:
   api_key_env: ODDS_API_KEY
   regions: us,uk,eu
   bookmakers: null
+
+live_data:
+  api_tennis_key_env: API_TENNIS_KEY
+  timezone: America/New_York
+  backfill_start: "2026-06-08"
+  tournament_registry_path: data/metadata/tournaments.csv
+  player_aliases_path: data/metadata/player_aliases.csv
+  unresolved_fixtures_path: data/live/unresolved_fixtures.csv
+  upcoming_days: 3
+  replay_days: 7
+  polymarket_refresh_seconds: 30
+  polymarket_market_pages: 4
+  polymarket_page_size: 100
+  polymarket_max_markets_per_day: 60
+  polymarket_book_batch_size: 50
+  cold_start_min_matches: 8
+  recommended_prediction_matches: 20
+  recommended_surface_matches: 5
+  max_player_staleness_days: 120
+
+paper_trading:
+  database_path: data/paper_trading.db
+  default_stake: 5.0
+  min_edge: 0.03
+  kelly_multiplier: 0.25
+  max_kelly_fraction: 0.05
+
+history:
+  start_date: "2023-01-01"
+  raw_api_tennis_dir: data/raw/api_tennis
+  normalized_api_tennis_path: data/normalized/api_tennis_matches.parquet
+  unresolved_api_tennis_path: data/normalized/api_tennis_unresolved.csv
+  tennis_data_directory: null
+  tennis_data_snapshots_path: data/normalized/tennis_data_odds.parquet
+  identity_database_path: data/identity.db
+  merged_matches_path: data/processed/matches_full.parquet
+  chronological_features_path: data/processed/features_full.parquet
+  candidate_output_dir: outputs/candidate
+  fuzzy_match_threshold: 96.0
+  fuzzy_minimum_margin: 3.0
+  max_retries: 4
+  retry_backoff_seconds: 2.0
+  sleep_between_requests: 0.25
+  minimum_gate_segment_matches: 200
+  gate_bootstrap_samples: 2000
+  gate_confidence: 0.95
+
+kaggle:
+  enabled: true
+  cli_executable: kaggle
+  raw_root: data/raw/kaggle
+  normalized_root: data/normalized/kaggle
+  candidate_matches_database_path: data/candidate_matches.db
+  atp_daily_slug: dissfya/atp-tennis-2000-2023daily-pull
+  wta_daily_slug: dissfya/wta-tennis-2007-2023-daily-update
+  huge_tennis_slug: guillemservera/tennis
+  command_timeout_seconds: 1200
+  accept_schema_change: false

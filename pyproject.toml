@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tennis-moneyline-prediction"
-version = "0.1.0"
+version = "0.2.0"
 description = "Leakage-safe ATP/WTA tennis probability modeling and odds backtesting pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "joblib>=1.3",
+  "kaggle>=1.6.11",
   "lightgbm>=4.3",
   "numpy>=1.26",
   "pandas>=2.1",
@@ -19,6 +20,8 @@ dependencies = [
   "requests>=2.31",
   "scikit-learn>=1.4",
   "scipy>=1.11",
+  "streamlit>=1.36",
+  "plotly>=5.20",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +31,14 @@ dev = ["pytest>=8", "ruff>=0.5"]
 tennis-download = "tennis_predictor.cli:download_main"
 tennis-backtest = "tennis_predictor.cli:backtest_main"
 tennis-predict = "tennis_predictor.cli:predict_main"
+tennis-prepare-dashboard = "tennis_predictor.ui.prepare:main"
+tennis-sync = "tennis_predictor.cli:sync_main"
+tennis-rebuild-live = "tennis_predictor.cli:rebuild_live_main"
+tennis-backfill-history = "tennis_predictor.cli:backfill_history_main"
+tennis-rebuild-candidate = "tennis_predictor.cli:rebuild_candidate_main"
+tennis-sync-kaggle = "tennis_predictor.cli:kaggle_sync_main"
+tennis-surface-audit = "tennis_predictor.cli:surface_audit_main"
+tennis-sync-itf-women = "tennis_predictor.cli:itf_women_sync_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

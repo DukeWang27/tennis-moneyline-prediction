@@ -1,0 +1,16 @@
+{
+  "input_rows": 123529,
+  "resolved_rows": 123529,
+  "unresolved_rows": 0,
+  "unique_matches": 123528,
+  "duplicate_source_rows_merged": 1,
+  "by_source": {
+    "cleaned_kaggle_unified": 123529
+  },
+  "by_segment": {
+    "ITF_MEN": 56772,
+    "ATP_CHALLENGER": 30835,
+    "ATP_MAIN": 21664,
+    "WTA_MAIN": 14257
+  }
+}

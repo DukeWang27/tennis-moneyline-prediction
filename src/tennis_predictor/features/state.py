@@ -40,6 +40,7 @@ class TennisState:
         self.players: dict[str, PlayerState] = {}
         self.h2h: dict[tuple[str, str], dict[str, int]] = defaultdict(_new_h2h_record)
         self.as_of: pd.Timestamp | None = None
+        self.processed_match_ids: set[str] = set()
 
     def player(self, player_id: str) -> PlayerState:
         if player_id not in self.players:
@@ -169,52 +170,68 @@ class TennisState:
         }
 
     def update(self, row: pd.Series) -> None:
-        date = pd.Timestamp(row["date"])
+        match_id = str(row.get("match_id", ""))
+        if match_id and match_id in getattr(self, "processed_match_ids", set()):
+            return
+        if not hasattr(self, "processed_match_ids"):
+            self.processed_match_ids = set()
+        date = pd.Timestamp(row.get("chronology_ts", row["date"]))
         p1_id, p2_id = str(row["player1_id"]), str(row["player2_id"])
         p1, p2 = self.player(p1_id), self.player(p2_id)
         surface = str(row["surface"])
         outcome1 = float(row["player1_won"])
         outcome2 = 1.0 - outcome1
-        if bool(row.get("walkover", False)):
+        if bool(row.get("walkover", False)) or bool(row.get("defaulted", False)) or bool(row.get("void", False)):
             match_weight = self.cfg.walkover_elo_weight
         elif bool(row.get("retirement", False)):
             match_weight = self.cfg.retirement_elo_weight
         else:
             match_weight = 1.0
 
-        blended1, _, _ = self._surface_rating(p1, surface)
-        blended2, _, _ = self._surface_rating(p2, surface)
-        expected1 = 1.0 / (1.0 + 10.0 ** ((blended2 - blended1) / 400.0))
+        surface_known = surface in {"Hard", "Clay", "Grass", "Carpet"}
+        if surface_known:
+            rating1, _, _ = self._surface_rating(p1, surface)
+            rating2, _, _ = self._surface_rating(p2, surface)
+        else:
+            # Unknown-court matches still update general strength and sequential
+            # state, but never create or alter an "Unknown" surface rating.
+            rating1, rating2 = p1.overall_elo, p2.overall_elo
+        expected1 = 1.0 / (1.0 + 10.0 ** ((rating2 - rating1) / 400.0))
         delta = self.cfg.elo_k * match_weight * (outcome1 - expected1)
         p1.overall_elo += delta
         p2.overall_elo -= delta
 
-        s1 = p1.surface_elo.get(surface, self.cfg.initial_elo)
-        s2 = p2.surface_elo.get(surface, self.cfg.initial_elo)
-        expected_surface1 = 1.0 / (1.0 + 10.0 ** ((s2 - s1) / 400.0))
-        surface_delta = self.cfg.elo_k * match_weight * (outcome1 - expected_surface1)
-        p1.surface_elo[surface] = s1 + surface_delta
-        p2.surface_elo[surface] = s2 - surface_delta
+        if surface_known:
+            s1 = p1.surface_elo.get(surface, self.cfg.initial_elo)
+            s2 = p2.surface_elo.get(surface, self.cfg.initial_elo)
+            expected_surface1 = 1.0 / (1.0 + 10.0 ** ((s2 - s1) / 400.0))
+            surface_delta = self.cfg.elo_k * match_weight * (outcome1 - expected_surface1)
+            p1.surface_elo[surface] = s1 + surface_delta
+            p2.surface_elo[surface] = s2 - surface_delta
         if match_weight > 0:
-            p1.surface_matches[surface] = p1.surface_matches.get(surface, 0) + 1
-            p2.surface_matches[surface] = p2.surface_matches.get(surface, 0) + 1
+            if surface_known:
+                p1.surface_matches[surface] = p1.surface_matches.get(surface, 0) + 1
+                p2.surface_matches[surface] = p2.surface_matches.get(surface, 0) + 1
             p1.results.append((date, outcome1, match_weight))
             p2.results.append((date, outcome2, match_weight))
             p1.match_dates.append(date)
             p2.match_dates.append(date)
             self.h2h[tuple(sorted((p1_id, p2_id)))][p1_id if outcome1 == 1 else p2_id] += 1
 
-        for state, pid, age in (
-            (p1, p1_id, row.get("player1_age", np.nan)),
-            (p2, p2_id, row.get("player2_age", np.nan)),
-        ):
-            state.total_matches += 1
-            if str(row.get("tier", "")) not in {"Challenger", "ITF"}:
-                state.tour_matches += 1
-            state.first_date = date if state.first_date is None else min(state.first_date, date)
-            state.last_date = date if state.last_date is None else max(state.last_date, date)
-            if pd.notna(age):
-                state.age_last = float(age)
-            if str(row.get("retiring_player_id", "")) == pid:
-                state.incidents.append(date)
+        if match_weight > 0:
+            for state, pid, age in (
+                (p1, p1_id, row.get("player1_age", np.nan)),
+                (p2, p2_id, row.get("player2_age", np.nan)),
+            ):
+                state.total_matches += 1
+                if str(row.get("tier", "")) not in {"Challenger", "ITF"}:
+                    state.tour_matches += 1
+                state.first_date = date if state.first_date is None else min(state.first_date, date)
+                state.last_date = date if state.last_date is None else max(state.last_date, date)
+                if pd.notna(age):
+                    state.age_last = float(age)
+                if str(row.get("retiring_player_id", "")) == pid:
+                    state.incidents.append(date)
         self.as_of = date if self.as_of is None else max(self.as_of, date)
+        if match_id:
+            self.processed_match_ids.add(match_id)

@@ -23,3 +23,16 @@ outputs/
 .DS_Store
 .vscode/
 .idea/
+
+# Streamlit secrets (never commit real secrets)
+.streamlit/secrets.toml
+.mypy_cache/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.joblib
+*.parquet
+*.zip
+surface_patch_backups/
+dashboard_patch_backups/

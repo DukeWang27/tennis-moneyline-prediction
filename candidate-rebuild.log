@@ -1,0 +1,325 @@
+[identity] Starting canonicalization of 1,280,454 match rows
+[identity] 5,000/1,280,454 rows | unique identities=2,124 | cache hits=7,876 | cache misses=2,124 | resolved matches=5,000 | unresolved matches=0
+[identity] 10,000/1,280,454 rows | unique identities=2,872 | cache hits=17,128 | cache misses=2,872 | resolved matches=10,000 | unresolved matches=0
+[identity] 15,000/1,280,454 rows | unique identities=3,332 | cache hits=26,668 | cache misses=3,332 | resolved matches=15,000 | unresolved matches=0
+[identity] 20,000/1,280,454 rows | unique identities=3,804 | cache hits=36,196 | cache misses=3,804 | resolved matches=20,000 | unresolved matches=0
+[identity] 25,000/1,280,454 rows | unique identities=4,431 | cache hits=45,569 | cache misses=4,431 | resolved matches=25,000 | unresolved matches=0
+[identity] 30,000/1,280,454 rows | unique identities=4,911 | cache hits=55,089 | cache misses=4,911 | resolved matches=30,000 | unresolved matches=0
+[identity] 35,000/1,280,454 rows | unique identities=5,388 | cache hits=64,612 | cache misses=5,388 | resolved matches=35,000 | unresolved matches=0
+[identity] 40,000/1,280,454 rows | unique identities=5,730 | cache hits=74,270 | cache misses=5,730 | resolved matches=40,000 | unresolved matches=0
+[identity] 45,000/1,280,454 rows | unique identities=5,966 | cache hits=84,034 | cache misses=5,966 | resolved matches=45,000 | unresolved matches=0
+[identity] 50,000/1,280,454 rows | unique identities=6,258 | cache hits=93,742 | cache misses=6,258 | resolved matches=50,000 | unresolved matches=0
+[identity] 55,000/1,280,454 rows | unique identities=6,495 | cache hits=103,505 | cache misses=6,495 | resolved matches=55,000 | unresolved matches=0
+[identity] 60,000/1,280,454 rows | unique identities=6,642 | cache hits=113,358 | cache misses=6,642 | resolved matches=60,000 | unresolved matches=0
+[identity] 65,000/1,280,454 rows | unique identities=6,797 | cache hits=123,203 | cache misses=6,797 | resolved matches=65,000 | unresolved matches=0
+[identity] 70,000/1,280,454 rows | unique identities=6,972 | cache hits=133,028 | cache misses=6,972 | resolved matches=70,000 | unresolved matches=0
+[identity] 75,000/1,280,454 rows | unique identities=7,153 | cache hits=142,847 | cache misses=7,153 | resolved matches=75,000 | unresolved matches=0
+[identity] 80,000/1,280,454 rows | unique identities=7,359 | cache hits=152,641 | cache misses=7,359 | resolved matches=80,000 | unresolved matches=0
+[identity] 85,000/1,280,454 rows | unique identities=7,622 | cache hits=162,378 | cache misses=7,622 | resolved matches=85,000 | unresolved matches=0
+[identity] 90,000/1,280,454 rows | unique identities=7,821 | cache hits=172,179 | cache misses=7,821 | resolved matches=90,000 | unresolved matches=0
+[identity] 95,000/1,280,454 rows | unique identities=7,987 | cache hits=182,013 | cache misses=7,987 | resolved matches=95,000 | unresolved matches=0
+[identity] 100,000/1,280,454 rows | unique identities=8,148 | cache hits=191,852 | cache misses=8,148 | resolved matches=100,000 | unresolved matches=0
+[identity] 105,000/1,280,454 rows | unique identities=8,305 | cache hits=201,695 | cache misses=8,305 | resolved matches=105,000 | unresolved matches=0
+[identity] 110,000/1,280,454 rows | unique identities=8,469 | cache hits=211,531 | cache misses=8,469 | resolved matches=110,000 | unresolved matches=0
+[identity] 115,000/1,280,454 rows | unique identities=8,721 | cache hits=221,279 | cache misses=8,721 | resolved matches=115,000 | unresolved matches=0
+[identity] 120,000/1,280,454 rows | unique identities=8,819 | cache hits=231,181 | cache misses=8,819 | resolved matches=120,000 | unresolved matches=0
+[identity] 125,000/1,280,454 rows | unique identities=8,929 | cache hits=241,071 | cache misses=8,929 | resolved matches=125,000 | unresolved matches=0
+[identity] 130,000/1,280,454 rows | unique identities=9,025 | cache hits=250,975 | cache misses=9,025 | resolved matches=130,000 | unresolved matches=0
+[identity] 135,000/1,280,454 rows | unique identities=9,170 | cache hits=260,830 | cache misses=9,170 | resolved matches=135,000 | unresolved matches=0
+[identity] 140,000/1,280,454 rows | unique identities=9,339 | cache hits=270,661 | cache misses=9,339 | resolved matches=140,000 | unresolved matches=0
+[identity] 145,000/1,280,454 rows | unique identities=9,506 | cache hits=280,494 | cache misses=9,506 | resolved matches=145,000 | unresolved matches=0
+[identity] 150,000/1,280,454 rows | unique identities=9,647 | cache hits=290,353 | cache misses=9,647 | resolved matches=150,000 | unresolved matches=0
+[identity] 155,000/1,280,454 rows | unique identities=9,808 | cache hits=300,192 | cache misses=9,808 | resolved matches=155,000 | unresolved matches=0
+[identity] 160,000/1,280,454 rows | unique identities=10,024 | cache hits=309,976 | cache misses=10,024 | resolved matches=160,000 | unresolved matches=0
+[identity] 165,000/1,280,454 rows | unique identities=10,139 | cache hits=319,861 | cache misses=10,139 | resolved matches=165,000 | unresolved matches=0
+[identity] 170,000/1,280,454 rows | unique identities=10,320 | cache hits=329,680 | cache misses=10,320 | resolved matches=170,000 | unresolved matches=0
+[identity] 175,000/1,280,454 rows | unique identities=10,517 | cache hits=339,483 | cache misses=10,517 | resolved matches=175,000 | unresolved matches=0
+[identity] 180,000/1,280,454 rows | unique identities=10,622 | cache hits=349,378 | cache misses=10,622 | resolved matches=180,000 | unresolved matches=0
+[identity] 185,000/1,280,454 rows | unique identities=10,743 | cache hits=359,257 | cache misses=10,743 | resolved matches=185,000 | unresolved matches=0
+[identity] 190,000/1,280,454 rows | unique identities=10,836 | cache hits=369,164 | cache misses=10,836 | resolved matches=190,000 | unresolved matches=0
+[identity] 195,000/1,280,454 rows | unique identities=11,040 | cache hits=378,960 | cache misses=11,040 | resolved matches=195,000 | unresolved matches=0
+[identity] 200,000/1,280,454 rows | unique identities=11,188 | cache hits=388,812 | cache misses=11,188 | resolved matches=200,000 | unresolved matches=0
+[identity] 205,000/1,280,454 rows | unique identities=11,328 | cache hits=398,672 | cache misses=11,328 | resolved matches=205,000 | unresolved matches=0
+[identity] 210,000/1,280,454 rows | unique identities=12,037 | cache hits=407,963 | cache misses=12,037 | resolved matches=208,027 | unresolved matches=1,973
+[identity] 215,000/1,280,454 rows | unique identities=12,256 | cache hits=417,744 | cache misses=12,256 | resolved matches=208,032 | unresolved matches=6,968
+[identity] 220,000/1,280,454 rows | unique identities=12,477 | cache hits=427,523 | cache misses=12,477 | resolved matches=208,035 | unresolved matches=11,965
+[identity] 225,000/1,280,454 rows | unique identities=12,700 | cache hits=437,300 | cache misses=12,700 | resolved matches=208,037 | unresolved matches=16,963
+[identity] 230,000/1,280,454 rows | unique identities=12,839 | cache hits=447,161 | cache misses=12,839 | resolved matches=208,037 | unresolved matches=21,963
+[identity] 235,000/1,280,454 rows | unique identities=12,968 | cache hits=457,032 | cache misses=12,968 | resolved matches=208,041 | unresolved matches=26,959
+[identity] 240,000/1,280,454 rows | unique identities=14,446 | cache hits=465,554 | cache misses=14,446 | resolved matches=208,992 | unresolved matches=31,008
+[identity] 245,000/1,280,454 rows | unique identities=15,226 | cache hits=474,774 | cache misses=15,226 | resolved matches=210,861 | unresolved matches=34,139
+[identity] 250,000/1,280,454 rows | unique identities=15,742 | cache hits=484,258 | cache misses=15,742 | resolved matches=211,297 | unresolved matches=38,703
+[identity] 255,000/1,280,454 rows | unique identities=15,866 | cache hits=494,134 | cache misses=15,866 | resolved matches=211,403 | unresolved matches=43,597
+[identity] 260,000/1,280,454 rows | unique identities=15,995 | cache hits=504,005 | cache misses=15,995 | resolved matches=211,575 | unresolved matches=48,425
+[identity] 265,000/1,280,454 rows | unique identities=16,093 | cache hits=513,907 | cache misses=16,093 | resolved matches=211,854 | unresolved matches=53,146
+[identity] 270,000/1,280,454 rows | unique identities=16,196 | cache hits=523,804 | cache misses=16,196 | resolved matches=212,305 | unresolved matches=57,695
+[identity] 275,000/1,280,454 rows | unique identities=16,274 | cache hits=533,726 | cache misses=16,274 | resolved matches=213,031 | unresolved matches=61,969
+[identity] 280,000/1,280,454 rows | unique identities=16,351 | cache hits=543,649 | cache misses=16,351 | resolved matches=214,093 | unresolved matches=65,907
+[identity] 285,000/1,280,454 rows | unique identities=16,436 | cache hits=553,564 | cache misses=16,436 | resolved matches=215,538 | unresolved matches=69,462
+[identity] 290,000/1,280,454 rows | unique identities=16,514 | cache hits=563,486 | cache misses=16,514 | resolved matches=217,723 | unresolved matches=72,277
+[identity] 295,000/1,280,454 rows | unique identities=16,606 | cache hits=573,394 | cache misses=16,606 | resolved matches=220,437 | unresolved matches=74,563
+[identity] 300,000/1,280,454 rows | unique identities=16,684 | cache hits=583,316 | cache misses=16,684 | resolved matches=223,976 | unresolved matches=76,024
+[identity] 305,000/1,280,454 rows | unique identities=16,770 | cache hits=593,230 | cache misses=16,770 | resolved matches=227,935 | unresolved matches=77,065
+[identity] 310,000/1,280,454 rows | unique identities=16,851 | cache hits=603,149 | cache misses=16,851 | resolved matches=231,902 | unresolved matches=78,098
+[identity] 315,000/1,280,454 rows | unique identities=17,104 | cache hits=612,896 | cache misses=17,104 | resolved matches=235,290 | unresolved matches=79,710
+[identity] 320,000/1,280,454 rows | unique identities=17,299 | cache hits=622,701 | cache misses=17,299 | resolved matches=235,922 | unresolved matches=84,078
+[identity] 325,000/1,280,454 rows | unique identities=17,397 | cache hits=632,603 | cache misses=17,397 | resolved matches=236,858 | unresolved matches=88,142
+[identity] 330,000/1,280,454 rows | unique identities=17,514 | cache hits=642,486 | cache misses=17,514 | resolved matches=238,205 | unresolved matches=91,795
+[identity] 335,000/1,280,454 rows | unique identities=17,606 | cache hits=652,394 | cache misses=17,606 | resolved matches=240,165 | unresolved matches=94,835
+[identity] 340,000/1,280,454 rows | unique identities=17,714 | cache hits=662,286 | cache misses=17,714 | resolved matches=242,534 | unresolved matches=97,466
+[identity] 345,000/1,280,454 rows | unique identities=17,834 | cache hits=672,166 | cache misses=17,834 | resolved matches=245,640 | unresolved matches=99,360
+[identity] 350,000/1,280,454 rows | unique identities=17,946 | cache hits=682,054 | cache misses=17,946 | resolved matches=249,612 | unresolved matches=100,388
+[identity] 355,000/1,280,454 rows | unique identities=18,090 | cache hits=691,910 | cache misses=18,090 | resolved matches=253,846 | unresolved matches=101,154
+[identity] 360,000/1,280,454 rows | unique identities=18,648 | cache hits=701,352 | cache misses=18,648 | resolved matches=257,719 | unresolved matches=102,281
+[identity] 365,000/1,280,454 rows | unique identities=19,770 | cache hits=710,230 | cache misses=19,770 | resolved matches=259,646 | unresolved matches=105,354
+[identity] 370,000/1,280,454 rows | unique identities=20,206 | cache hits=719,794 | cache misses=20,206 | resolved matches=261,584 | unresolved matches=108,416
+[identity] 375,000/1,280,454 rows | unique identities=20,450 | cache hits=729,550 | cache misses=20,450 | resolved matches=263,694 | unresolved matches=111,306
+[identity] 380,000/1,280,454 rows | unique identities=20,695 | cache hits=739,305 | cache misses=20,695 | resolved matches=265,691 | unresolved matches=114,309
+[identity] 385,000/1,280,454 rows | unique identities=20,864 | cache hits=749,136 | cache misses=20,864 | resolved matches=267,705 | unresolved matches=117,295
+[identity] 390,000/1,280,454 rows | unique identities=21,005 | cache hits=758,995 | cache misses=21,005 | resolved matches=269,723 | unresolved matches=120,277
+[identity] 395,000/1,280,454 rows | unique identities=21,143 | cache hits=768,857 | cache misses=21,143 | resolved matches=271,647 | unresolved matches=123,353
+[identity] 400,000/1,280,454 rows | unique identities=21,266 | cache hits=778,734 | cache misses=21,266 | resolved matches=273,470 | unresolved matches=126,530
+[identity] 405,000/1,280,454 rows | unique identities=21,411 | cache hits=788,589 | cache misses=21,411 | resolved matches=275,264 | unresolved matches=129,736
+[identity] 410,000/1,280,454 rows | unique identities=21,590 | cache hits=798,410 | cache misses=21,590 | resolved matches=277,017 | unresolved matches=132,983
+[identity] 415,000/1,280,454 rows | unique identities=21,731 | cache hits=808,269 | cache misses=21,731 | resolved matches=278,711 | unresolved matches=136,289
+[identity] 420,000/1,280,454 rows | unique identities=21,849 | cache hits=818,151 | cache misses=21,849 | resolved matches=280,513 | unresolved matches=139,487
+[identity] 425,000/1,280,454 rows | unique identities=22,025 | cache hits=827,975 | cache misses=22,025 | resolved matches=282,336 | unresolved matches=142,664
+[identity] 430,000/1,280,454 rows | unique identities=22,172 | cache hits=837,828 | cache misses=22,172 | resolved matches=284,122 | unresolved matches=145,878
+[identity] 435,000/1,280,454 rows | unique identities=22,348 | cache hits=847,652 | cache misses=22,348 | resolved matches=285,944 | unresolved matches=149,056
+[identity] 440,000/1,280,454 rows | unique identities=22,536 | cache hits=857,464 | cache misses=22,536 | resolved matches=287,699 | unresolved matches=152,301
+[identity] 445,000/1,280,454 rows | unique identities=22,707 | cache hits=867,293 | cache misses=22,707 | resolved matches=289,364 | unresolved matches=155,636
+[identity] 450,000/1,280,454 rows | unique identities=22,849 | cache hits=877,151 | cache misses=22,849 | resolved matches=291,198 | unresolved matches=158,802
+[identity] 455,000/1,280,454 rows | unique identities=22,976 | cache hits=887,024 | cache misses=22,976 | resolved matches=292,815 | unresolved matches=162,185
+[identity] 460,000/1,280,454 rows | unique identities=23,117 | cache hits=896,883 | cache misses=23,117 | resolved matches=294,344 | unresolved matches=165,656
+[identity] 465,000/1,280,454 rows | unique identities=23,224 | cache hits=906,776 | cache misses=23,224 | resolved matches=295,868 | unresolved matches=169,132
+[identity] 470,000/1,280,454 rows | unique identities=23,360 | cache hits=916,640 | cache misses=23,360 | resolved matches=297,215 | unresolved matches=172,785
+[identity] 475,000/1,280,454 rows | unique identities=23,502 | cache hits=926,498 | cache misses=23,502 | resolved matches=298,588 | unresolved matches=176,412
+[identity] 480,000/1,280,454 rows | unique identities=23,647 | cache hits=936,353 | cache misses=23,647 | resolved matches=300,020 | unresolved matches=179,980
+[identity] 485,000/1,280,454 rows | unique identities=23,746 | cache hits=946,254 | cache misses=23,746 | resolved matches=301,648 | unresolved matches=183,352
+[identity] 490,000/1,280,454 rows | unique identities=23,948 | cache hits=956,052 | cache misses=23,948 | resolved matches=303,216 | unresolved matches=186,784
+[identity] 495,000/1,280,454 rows | unique identities=24,088 | cache hits=965,912 | cache misses=24,088 | resolved matches=304,630 | unresolved matches=190,370
+[identity] 500,000/1,280,454 rows | unique identities=24,287 | cache hits=975,713 | cache misses=24,287 | resolved matches=305,942 | unresolved matches=194,058
+[identity] 505,000/1,280,454 rows | unique identities=24,407 | cache hits=985,593 | cache misses=24,407 | resolved matches=307,247 | unresolved matches=197,753
+[identity] 510,000/1,280,454 rows | unique identities=24,568 | cache hits=995,432 | cache misses=24,568 | resolved matches=308,414 | unresolved matches=201,586
+[identity] 515,000/1,280,454 rows | unique identities=24,726 | cache hits=1,005,274 | cache misses=24,726 | resolved matches=309,342 | unresolved matches=205,658
+[identity] 520,000/1,280,454 rows | unique identities=24,857 | cache hits=1,015,143 | cache misses=24,857 | resolved matches=310,212 | unresolved matches=209,788
+[identity] 525,000/1,280,454 rows | unique identities=25,010 | cache hits=1,024,990 | cache misses=25,010 | resolved matches=310,898 | unresolved matches=214,102
+[identity] 530,000/1,280,454 rows | unique identities=25,126 | cache hits=1,034,874 | cache misses=25,126 | resolved matches=311,239 | unresolved matches=218,761
+[identity] 535,000/1,280,454 rows | unique identities=25,274 | cache hits=1,044,726 | cache misses=25,274 | resolved matches=311,413 | unresolved matches=223,587
+[identity] 540,000/1,280,454 rows | unique identities=25,377 | cache hits=1,054,623 | cache misses=25,377 | resolved matches=311,471 | unresolved matches=228,529
+[identity] 545,000/1,280,454 rows | unique identities=25,502 | cache hits=1,064,498 | cache misses=25,502 | resolved matches=311,484 | unresolved matches=233,516
+[identity] 550,000/1,280,454 rows | unique identities=25,642 | cache hits=1,074,358 | cache misses=25,642 | resolved matches=311,489 | unresolved matches=238,511
+[identity] 555,000/1,280,454 rows | unique identities=26,872 | cache hits=1,083,128 | cache misses=26,872 | resolved matches=311,666 | unresolved matches=243,334
+[identity] 560,000/1,280,454 rows | unique identities=28,683 | cache hits=1,091,317 | cache misses=28,683 | resolved matches=311,923 | unresolved matches=248,077
+[identity] 565,000/1,280,454 rows | unique identities=29,695 | cache hits=1,100,305 | cache misses=29,695 | resolved matches=312,630 | unresolved matches=252,370
+[identity] 570,000/1,280,454 rows | unique identities=30,631 | cache hits=1,109,369 | cache misses=30,631 | resolved matches=313,822 | unresolved matches=256,178
+[identity] 575,000/1,280,454 rows | unique identities=31,133 | cache hits=1,118,867 | cache misses=31,133 | resolved matches=315,172 | unresolved matches=259,828
+[identity] 580,000/1,280,454 rows | unique identities=31,522 | cache hits=1,128,478 | cache misses=31,522 | resolved matches=316,821 | unresolved matches=263,179
+[identity] 585,000/1,280,454 rows | unique identities=32,047 | cache hits=1,137,953 | cache misses=32,047 | resolved matches=318,249 | unresolved matches=266,751
+[identity] 590,000/1,280,454 rows | unique identities=32,253 | cache hits=1,147,747 | cache misses=32,253 | resolved matches=319,880 | unresolved matches=270,120
+[identity] 595,000/1,280,454 rows | unique identities=32,530 | cache hits=1,157,470 | cache misses=32,530 | resolved matches=321,497 | unresolved matches=273,503
+[identity] 600,000/1,280,454 rows | unique identities=32,715 | cache hits=1,167,285 | cache misses=32,715 | resolved matches=323,077 | unresolved matches=276,923
+[identity] 605,000/1,280,454 rows | unique identities=32,950 | cache hits=1,177,050 | cache misses=32,950 | resolved matches=324,629 | unresolved matches=280,371
+[identity] 610,000/1,280,454 rows | unique identities=33,117 | cache hits=1,186,883 | cache misses=33,117 | resolved matches=326,182 | unresolved matches=283,818
+[identity] 615,000/1,280,454 rows | unique identities=33,340 | cache hits=1,196,660 | cache misses=33,340 | resolved matches=327,744 | unresolved matches=287,256
+[identity] 620,000/1,280,454 rows | unique identities=33,514 | cache hits=1,206,486 | cache misses=33,514 | resolved matches=329,424 | unresolved matches=290,576
+[identity] 625,000/1,280,454 rows | unique identities=33,745 | cache hits=1,216,255 | cache misses=33,745 | resolved matches=331,107 | unresolved matches=293,893
+[identity] 630,000/1,280,454 rows | unique identities=33,870 | cache hits=1,226,130 | cache misses=33,870 | resolved matches=332,702 | unresolved matches=297,298
+[identity] 635,000/1,280,454 rows | unique identities=34,098 | cache hits=1,235,902 | cache misses=34,098 | resolved matches=334,278 | unresolved matches=300,722
+[identity] 640,000/1,280,454 rows | unique identities=34,261 | cache hits=1,245,739 | cache misses=34,261 | resolved matches=335,916 | unresolved matches=304,084
+[identity] 645,000/1,280,454 rows | unique identities=34,397 | cache hits=1,255,603 | cache misses=34,397 | resolved matches=337,668 | unresolved matches=307,332
+[identity] 650,000/1,280,454 rows | unique identities=34,659 | cache hits=1,265,341 | cache misses=34,659 | resolved matches=339,328 | unresolved matches=310,672
+[identity] 655,000/1,280,454 rows | unique identities=34,822 | cache hits=1,275,178 | cache misses=34,822 | resolved matches=341,075 | unresolved matches=313,925
+[identity] 660,000/1,280,454 rows | unique identities=35,013 | cache hits=1,284,987 | cache misses=35,013 | resolved matches=342,912 | unresolved matches=317,088
+[identity] 665,000/1,280,454 rows | unique identities=35,247 | cache hits=1,294,753 | cache misses=35,247 | resolved matches=344,662 | unresolved matches=320,338
+[identity] 670,000/1,280,454 rows | unique identities=35,380 | cache hits=1,304,620 | cache misses=35,380 | resolved matches=346,467 | unresolved matches=323,533
+[identity] 675,000/1,280,454 rows | unique identities=35,622 | cache hits=1,314,378 | cache misses=35,622 | resolved matches=348,166 | unresolved matches=326,834
+[identity] 680,000/1,280,454 rows | unique identities=35,832 | cache hits=1,324,168 | cache misses=35,832 | resolved matches=349,946 | unresolved matches=330,054
+[identity] 685,000/1,280,454 rows | unique identities=35,962 | cache hits=1,334,038 | cache misses=35,962 | resolved matches=351,672 | unresolved matches=333,328
+[identity] 690,000/1,280,454 rows | unique identities=36,219 | cache hits=1,343,781 | cache misses=36,219 | resolved matches=353,381 | unresolved matches=336,619
+[identity] 695,000/1,280,454 rows | unique identities=36,327 | cache hits=1,353,673 | cache misses=36,327 | resolved matches=355,091 | unresolved matches=339,909
+[identity] 700,000/1,280,454 rows | unique identities=36,541 | cache hits=1,363,459 | cache misses=36,541 | resolved matches=356,855 | unresolved matches=343,145
+[identity] 705,000/1,280,454 rows | unique identities=36,770 | cache hits=1,373,230 | cache misses=36,770 | resolved matches=358,522 | unresolved matches=346,478
+[identity] 710,000/1,280,454 rows | unique identities=36,872 | cache hits=1,383,128 | cache misses=36,872 | resolved matches=360,190 | unresolved matches=349,810
+[identity] 715,000/1,280,454 rows | unique identities=37,114 | cache hits=1,392,886 | cache misses=37,114 | resolved matches=361,827 | unresolved matches=353,173
+[identity] 720,000/1,280,454 rows | unique identities=37,249 | cache hits=1,402,751 | cache misses=37,249 | resolved matches=363,494 | unresolved matches=356,506
+[identity] 725,000/1,280,454 rows | unique identities=37,447 | cache hits=1,412,553 | cache misses=37,447 | resolved matches=365,127 | unresolved matches=359,873
+[identity] 730,000/1,280,454 rows | unique identities=37,717 | cache hits=1,422,283 | cache misses=37,717 | resolved matches=366,618 | unresolved matches=363,382
+[identity] 735,000/1,280,454 rows | unique identities=37,841 | cache hits=1,432,159 | cache misses=37,841 | resolved matches=368,281 | unresolved matches=366,719
+[identity] 740,000/1,280,454 rows | unique identities=38,064 | cache hits=1,441,936 | cache misses=38,064 | resolved matches=369,864 | unresolved matches=370,136
+[identity] 745,000/1,280,454 rows | unique identities=38,301 | cache hits=1,451,699 | cache misses=38,301 | resolved matches=371,273 | unresolved matches=373,727
+[identity] 750,000/1,280,454 rows | unique identities=38,437 | cache hits=1,461,563 | cache misses=38,437 | resolved matches=372,708 | unresolved matches=377,292
+[identity] 755,000/1,280,454 rows | unique identities=38,684 | cache hits=1,471,316 | cache misses=38,684 | resolved matches=374,109 | unresolved matches=380,891
+[identity] 760,000/1,280,454 rows | unique identities=38,933 | cache hits=1,481,067 | cache misses=38,933 | resolved matches=375,502 | unresolved matches=384,498
+[identity] 765,000/1,280,454 rows | unique identities=39,062 | cache hits=1,490,938 | cache misses=39,062 | resolved matches=376,829 | unresolved matches=388,171
+[identity] 770,000/1,280,454 rows | unique identities=39,275 | cache hits=1,500,725 | cache misses=39,275 | resolved matches=378,130 | unresolved matches=391,870
+[identity] 775,000/1,280,454 rows | unique identities=39,531 | cache hits=1,510,469 | cache misses=39,531 | resolved matches=379,337 | unresolved matches=395,663
+[identity] 780,000/1,280,454 rows | unique identities=39,679 | cache hits=1,520,321 | cache misses=39,679 | resolved matches=380,557 | unresolved matches=399,443
+[identity] 785,000/1,280,454 rows | unique identities=39,905 | cache hits=1,530,095 | cache misses=39,905 | resolved matches=381,757 | unresolved matches=403,243
+[identity] 790,000/1,280,454 rows | unique identities=40,134 | cache hits=1,539,866 | cache misses=40,134 | resolved matches=382,957 | unresolved matches=407,043
+[identity] 795,000/1,280,454 rows | unique identities=40,263 | cache hits=1,549,737 | cache misses=40,263 | resolved matches=384,042 | unresolved matches=410,958
+[identity] 800,000/1,280,454 rows | unique identities=40,499 | cache hits=1,559,501 | cache misses=40,499 | resolved matches=385,222 | unresolved matches=414,778
+[identity] 805,000/1,280,454 rows | unique identities=40,766 | cache hits=1,569,234 | cache misses=40,766 | resolved matches=386,422 | unresolved matches=418,578
+[identity] 810,000/1,280,454 rows | unique identities=40,929 | cache hits=1,579,071 | cache misses=40,929 | resolved matches=387,531 | unresolved matches=422,469
+[identity] 815,000/1,280,454 rows | unique identities=41,070 | cache hits=1,588,930 | cache misses=41,070 | resolved matches=388,576 | unresolved matches=426,424
+[identity] 820,000/1,280,454 rows | unique identities=41,287 | cache hits=1,598,713 | cache misses=41,287 | resolved matches=389,732 | unresolved matches=430,268
+[identity] 825,000/1,280,454 rows | unique identities=41,469 | cache hits=1,608,531 | cache misses=41,469 | resolved matches=390,819 | unresolved matches=434,181
+[identity] 830,000/1,280,454 rows | unique identities=41,627 | cache hits=1,618,373 | cache misses=41,627 | resolved matches=391,864 | unresolved matches=438,136
+[identity] 835,000/1,280,454 rows | unique identities=41,856 | cache hits=1,628,144 | cache misses=41,856 | resolved matches=392,959 | unresolved matches=442,041
+[identity] 840,000/1,280,454 rows | unique identities=42,064 | cache hits=1,637,936 | cache misses=42,064 | resolved matches=393,929 | unresolved matches=446,071
+[identity] 845,000/1,280,454 rows | unique identities=42,312 | cache hits=1,647,688 | cache misses=42,312 | resolved matches=394,891 | unresolved matches=450,109
+[identity] 850,000/1,280,454 rows | unique identities=42,543 | cache hits=1,657,457 | cache misses=42,543 | resolved matches=395,929 | unresolved matches=454,071
+[identity] 855,000/1,280,454 rows | unique identities=42,754 | cache hits=1,667,246 | cache misses=42,754 | resolved matches=396,807 | unresolved matches=458,193
+[identity] 860,000/1,280,454 rows | unique identities=42,882 | cache hits=1,677,118 | cache misses=42,882 | resolved matches=397,737 | unresolved matches=462,263
+[identity] 865,000/1,280,454 rows | unique identities=43,091 | cache hits=1,686,909 | cache misses=43,091 | resolved matches=398,613 | unresolved matches=466,387
+[identity] 870,000/1,280,454 rows | unique identities=43,366 | cache hits=1,696,634 | cache misses=43,366 | resolved matches=399,520 | unresolved matches=470,480
+[identity] 875,000/1,280,454 rows | unique identities=43,540 | cache hits=1,706,460 | cache misses=43,540 | resolved matches=400,419 | unresolved matches=474,581
+[identity] 880,000/1,280,454 rows | unique identities=43,752 | cache hits=1,716,248 | cache misses=43,752 | resolved matches=401,288 | unresolved matches=478,712
+[identity] 885,000/1,280,454 rows | unique identities=44,015 | cache hits=1,725,985 | cache misses=44,015 | resolved matches=402,242 | unresolved matches=482,758
+[identity] 890,000/1,280,454 rows | unique identities=44,314 | cache hits=1,735,686 | cache misses=44,314 | resolved matches=403,137 | unresolved matches=486,863
+[identity] 895,000/1,280,454 rows | unique identities=44,467 | cache hits=1,745,533 | cache misses=44,467 | resolved matches=403,927 | unresolved matches=491,073
+[identity] 900,000/1,280,454 rows | unique identities=44,633 | cache hits=1,755,367 | cache misses=44,633 | resolved matches=404,746 | unresolved matches=495,254
+[identity] 905,000/1,280,454 rows | unique identities=44,861 | cache hits=1,765,139 | cache misses=44,861 | resolved matches=405,575 | unresolved matches=499,425
+[identity] 910,000/1,280,454 rows | unique identities=45,047 | cache hits=1,774,953 | cache misses=45,047 | resolved matches=406,445 | unresolved matches=503,555
+[identity] 915,000/1,280,454 rows | unique identities=45,223 | cache hits=1,784,777 | cache misses=45,223 | resolved matches=407,198 | unresolved matches=507,802
+[identity] 920,000/1,280,454 rows | unique identities=45,362 | cache hits=1,794,638 | cache misses=45,362 | resolved matches=407,935 | unresolved matches=512,065
+[identity] 925,000/1,280,454 rows | unique identities=45,604 | cache hits=1,804,396 | cache misses=45,604 | resolved matches=408,641 | unresolved matches=516,359
+[identity] 930,000/1,280,454 rows | unique identities=45,782 | cache hits=1,814,218 | cache misses=45,782 | resolved matches=409,292 | unresolved matches=520,708
+[identity] 935,000/1,280,454 rows | unique identities=45,975 | cache hits=1,824,025 | cache misses=45,975 | resolved matches=409,885 | unresolved matches=525,115
+[identity] 940,000/1,280,454 rows | unique identities=46,087 | cache hits=1,833,913 | cache misses=46,087 | resolved matches=410,511 | unresolved matches=529,489
+[identity] 945,000/1,280,454 rows | unique identities=46,253 | cache hits=1,843,747 | cache misses=46,253 | resolved matches=411,090 | unresolved matches=533,910
+[identity] 950,000/1,280,454 rows | unique identities=46,410 | cache hits=1,853,590 | cache misses=46,410 | resolved matches=411,684 | unresolved matches=538,316
+[identity] 955,000/1,280,454 rows | unique identities=46,604 | cache hits=1,863,396 | cache misses=46,604 | resolved matches=412,223 | unresolved matches=542,777
+[identity] 960,000/1,280,454 rows | unique identities=46,701 | cache hits=1,873,299 | cache misses=46,701 | resolved matches=412,643 | unresolved matches=547,357
+[identity] 965,000/1,280,454 rows | unique identities=46,855 | cache hits=1,883,145 | cache misses=46,855 | resolved matches=413,061 | unresolved matches=551,939
+[identity] 970,000/1,280,454 rows | unique identities=47,026 | cache hits=1,892,974 | cache misses=47,026 | resolved matches=413,538 | unresolved matches=556,462
+[identity] 975,000/1,280,454 rows | unique identities=47,143 | cache hits=1,902,857 | cache misses=47,143 | resolved matches=413,885 | unresolved matches=561,115
+[identity] 980,000/1,280,454 rows | unique identities=47,306 | cache hits=1,912,694 | cache misses=47,306 | resolved matches=414,157 | unresolved matches=565,843
+[identity] 985,000/1,280,454 rows | unique identities=47,492 | cache hits=1,922,508 | cache misses=47,492 | resolved matches=414,444 | unresolved matches=570,556
+[identity] 990,000/1,280,454 rows | unique identities=47,704 | cache hits=1,932,296 | cache misses=47,704 | resolved matches=414,718 | unresolved matches=575,282
+[identity] 995,000/1,280,454 rows | unique identities=47,821 | cache hits=1,942,179 | cache misses=47,821 | resolved matches=414,906 | unresolved matches=580,094
+[identity] 1,000,000/1,280,454 rows | unique identities=47,994 | cache hits=1,952,006 | cache misses=47,994 | resolved matches=415,114 | unresolved matches=584,886
+[identity] 1,005,000/1,280,454 rows | unique identities=48,179 | cache hits=1,961,821 | cache misses=48,179 | resolved matches=415,296 | unresolved matches=589,704
+[identity] 1,010,000/1,280,454 rows | unique identities=48,328 | cache hits=1,971,672 | cache misses=48,328 | resolved matches=415,403 | unresolved matches=594,597
+[identity] 1,015,000/1,280,454 rows | unique identities=48,560 | cache hits=1,981,440 | cache misses=48,560 | resolved matches=415,466 | unresolved matches=599,534
+[identity] 1,020,000/1,280,454 rows | unique identities=48,771 | cache hits=1,991,229 | cache misses=48,771 | resolved matches=415,501 | unresolved matches=604,499
+[identity] 1,025,000/1,280,454 rows | unique identities=48,972 | cache hits=2,001,028 | cache misses=48,972 | resolved matches=415,524 | unresolved matches=609,476
+[identity] 1,030,000/1,280,454 rows | unique identities=49,222 | cache hits=2,010,778 | cache misses=49,222 | resolved matches=415,528 | unresolved matches=614,472
+[identity] 1,035,000/1,280,454 rows | unique identities=49,477 | cache hits=2,020,523 | cache misses=49,477 | resolved matches=415,542 | unresolved matches=619,458
+[identity] 1,040,000/1,280,454 rows | unique identities=49,633 | cache hits=2,030,367 | cache misses=49,633 | resolved matches=415,556 | unresolved matches=624,444
+[identity] 1,045,000/1,280,454 rows | unique identities=49,874 | cache hits=2,040,126 | cache misses=49,874 | resolved matches=415,557 | unresolved matches=629,443
+[identity] 1,050,000/1,280,454 rows | unique identities=50,032 | cache hits=2,049,968 | cache misses=50,032 | resolved matches=415,557 | unresolved matches=634,443
+[identity] 1,055,000/1,280,454 rows | unique identities=50,167 | cache hits=2,059,833 | cache misses=50,167 | resolved matches=415,557 | unresolved matches=639,443
+[identity] 1,060,000/1,280,454 rows | unique identities=50,353 | cache hits=2,069,647 | cache misses=50,353 | resolved matches=415,558 | unresolved matches=644,442
+[identity] 1,065,000/1,280,454 rows | unique identities=50,518 | cache hits=2,079,482 | cache misses=50,518 | resolved matches=415,963 | unresolved matches=649,037
+[identity] 1,070,000/1,280,454 rows | unique identities=50,759 | cache hits=2,089,241 | cache misses=50,759 | resolved matches=417,842 | unresolved matches=652,158
+[identity] 1,075,000/1,280,454 rows | unique identities=50,902 | cache hits=2,099,098 | cache misses=50,902 | resolved matches=419,584 | unresolved matches=655,416
+[identity] 1,080,000/1,280,454 rows | unique identities=51,049 | cache hits=2,108,951 | cache misses=51,049 | resolved matches=421,286 | unresolved matches=658,714
+[identity] 1,085,000/1,280,454 rows | unique identities=51,111 | cache hits=2,118,889 | cache misses=51,111 | resolved matches=422,988 | unresolved matches=662,012
+[identity] 1,090,000/1,280,454 rows | unique identities=51,143 | cache hits=2,128,857 | cache misses=51,143 | resolved matches=424,519 | unresolved matches=665,481
+[identity] 1,095,000/1,280,454 rows | unique identities=51,170 | cache hits=2,138,830 | cache misses=51,170 | resolved matches=426,146 | unresolved matches=668,854
+[identity] 1,100,000/1,280,454 rows | unique identities=51,195 | cache hits=2,148,805 | cache misses=51,195 | resolved matches=427,798 | unresolved matches=672,202
+[identity] 1,105,000/1,280,454 rows | unique identities=51,219 | cache hits=2,158,781 | cache misses=51,219 | resolved matches=429,478 | unresolved matches=675,522
+[identity] 1,110,000/1,280,454 rows | unique identities=51,230 | cache hits=2,168,770 | cache misses=51,230 | resolved matches=430,998 | unresolved matches=679,002
+[identity] 1,115,000/1,280,454 rows | unique identities=51,247 | cache hits=2,178,753 | cache misses=51,247 | resolved matches=432,661 | unresolved matches=682,339
+[identity] 1,120,000/1,280,454 rows | unique identities=51,264 | cache hits=2,188,736 | cache misses=51,264 | resolved matches=434,457 | unresolved matches=685,543
+[identity] 1,125,000/1,280,454 rows | unique identities=51,278 | cache hits=2,198,722 | cache misses=51,278 | resolved matches=436,133 | unresolved matches=688,867
+[identity] 1,130,000/1,280,454 rows | unique identities=51,298 | cache hits=2,208,702 | cache misses=51,298 | resolved matches=437,807 | unresolved matches=692,193
+[identity] 1,135,000/1,280,454 rows | unique identities=51,321 | cache hits=2,218,679 | cache misses=51,321 | resolved matches=439,374 | unresolved matches=695,626
+[identity] 1,140,000/1,280,454 rows | unique identities=51,341 | cache hits=2,228,659 | cache misses=51,341 | resolved matches=441,114 | unresolved matches=698,886
+[identity] 1,145,000/1,280,454 rows | unique identities=51,357 | cache hits=2,238,643 | cache misses=51,357 | resolved matches=442,771 | unresolved matches=702,229
+[identity] 1,150,000/1,280,454 rows | unique identities=51,374 | cache hits=2,248,626 | cache misses=51,374 | resolved matches=444,319 | unresolved matches=705,681
+[identity] 1,155,000/1,280,454 rows | unique identities=51,402 | cache hits=2,258,598 | cache misses=51,402 | resolved matches=445,788 | unresolved matches=709,212
+[identity] 1,160,000/1,280,454 rows | unique identities=51,419 | cache hits=2,268,581 | cache misses=51,419 | resolved matches=447,047 | unresolved matches=712,953
+[identity] 1,165,000/1,280,454 rows | unique identities=51,429 | cache hits=2,278,571 | cache misses=51,429 | resolved matches=448,332 | unresolved matches=716,668
+[identity] 1,170,000/1,280,454 rows | unique identities=51,441 | cache hits=2,288,559 | cache misses=51,441 | resolved matches=449,458 | unresolved matches=720,542
+[identity] 1,175,000/1,280,454 rows | unique identities=51,456 | cache hits=2,298,544 | cache misses=51,456 | resolved matches=450,389 | unresolved matches=724,611
+[identity] 1,180,000/1,280,454 rows | unique identities=51,469 | cache hits=2,308,531 | cache misses=51,469 | resolved matches=451,280 | unresolved matches=728,720
+[identity] 1,185,000/1,280,454 rows | unique identities=51,488 | cache hits=2,318,512 | cache misses=51,488 | resolved matches=452,052 | unresolved matches=732,948
+[identity] 1,190,000/1,280,454 rows | unique identities=51,502 | cache hits=2,328,498 | cache misses=51,502 | resolved matches=452,680 | unresolved matches=737,320
+[identity] 1,195,000/1,280,454 rows | unique identities=51,513 | cache hits=2,338,487 | cache misses=51,513 | resolved matches=453,236 | unresolved matches=741,764
+[identity] 1,200,000/1,280,454 rows | unique identities=51,523 | cache hits=2,348,477 | cache misses=51,523 | resolved matches=453,686 | unresolved matches=746,314
+[identity] 1,205,000/1,280,454 rows | unique identities=51,527 | cache hits=2,358,473 | cache misses=51,527 | resolved matches=454,080 | unresolved matches=750,920
+[identity] 1,210,000/1,280,454 rows | unique identities=51,580 | cache hits=2,368,420 | cache misses=51,580 | resolved matches=454,493 | unresolved matches=755,507
+[identity] 1,215,000/1,280,454 rows | unique identities=51,665 | cache hits=2,378,335 | cache misses=51,665 | resolved matches=454,879 | unresolved matches=760,121
+[identity] 1,220,000/1,280,454 rows | unique identities=51,695 | cache hits=2,388,305 | cache misses=51,695 | resolved matches=455,182 | unresolved matches=764,818
+[identity] 1,225,000/1,280,454 rows | unique identities=51,707 | cache hits=2,398,293 | cache misses=51,707 | resolved matches=455,422 | unresolved matches=769,578
+[identity] 1,230,000/1,280,454 rows | unique identities=51,716 | cache hits=2,408,284 | cache misses=51,716 | resolved matches=455,572 | unresolved matches=774,428
+[identity] 1,235,000/1,280,454 rows | unique identities=51,727 | cache hits=2,418,273 | cache misses=51,727 | resolved matches=455,739 | unresolved matches=779,261
+[identity] 1,240,000/1,280,454 rows | unique identities=51,731 | cache hits=2,428,269 | cache misses=51,731 | resolved matches=455,836 | unresolved matches=784,164
+[identity] 1,245,000/1,280,454 rows | unique identities=51,735 | cache hits=2,438,265 | cache misses=51,735 | resolved matches=455,917 | unresolved matches=789,083
+[identity] 1,250,000/1,280,454 rows | unique identities=51,744 | cache hits=2,448,256 | cache misses=51,744 | resolved matches=455,981 | unresolved matches=794,019
+[identity] 1,255,000/1,280,454 rows | unique identities=51,750 | cache hits=2,458,250 | cache misses=51,750 | resolved matches=456,004 | unresolved matches=798,996
+[identity] 1,260,000/1,280,454 rows | unique identities=51,757 | cache hits=2,468,243 | cache misses=51,757 | resolved matches=456,009 | unresolved matches=803,991
+[identity] 1,265,000/1,280,454 rows | unique identities=51,762 | cache hits=2,478,238 | cache misses=51,762 | resolved matches=456,017 | unresolved matches=808,983
+[identity] 1,270,000/1,280,454 rows | unique identities=51,770 | cache hits=2,488,230 | cache misses=51,770 | resolved matches=456,017 | unresolved matches=813,983
+[identity] 1,275,000/1,280,454 rows | unique identities=51,775 | cache hits=2,498,225 | cache misses=51,775 | resolved matches=456,018 | unresolved matches=818,982
+[identity] 1,280,000/1,280,454 rows | unique identities=51,777 | cache hits=2,508,223 | cache misses=51,777 | resolved matches=456,019 | unresolved matches=823,981
+[identity] 1,280,454/1,280,454 rows | unique identities=51,777 | cache hits=2,509,131 | cache misses=51,777 | resolved matches=456,019 | unresolved matches=824,435
+[persist] Copied 24,717 canonical players into data/candidate_matches.db
+[persist] Writing 223,646 canonical matches
+{
+  "matches_path": "data/processed/matches_full.parquet",
+  "features_path": "data/processed/features_full.parquet",
+  "predictions_path": "outputs/candidate/predictions.parquet",
+  "metrics_path": "outputs/candidate/metrics.csv",
+  "calibration_path": "outputs/candidate/calibration_curves.csv",
+  "candidate_model_path": "outputs/candidate/trained_system_candidate.joblib",
+  "unresolved_path": "outputs/candidate/identity_unresolved.parquet",
+  "assembly": {
+    "input_rows": 1280454,
+    "resolved_rows": 226015,
+    "unresolved_rows": 824435,
+    "unique_matches": 223646,
+    "duplicate_source_rows_merged": 2369,
+    "by_source": {
+      "api_tennis": 208020,
+      "kaggle_wta_daily": 7416,
+      "kaggle_atp_daily": 7391,
+      "sackmann": 3184,
+      "huge_tennis": 4
+    },
+    "by_segment": {
+      "ITF_WOMEN": 67032,
+      "ITF_MEN": 66175,
+      "ATP_CHALLENGER": 37838,
+      "WTA_MAIN": 29567,
+      "ATP_MAIN": 23034
+    }
+  },
+  "model_gate": {
+    "status": "INCONCLUSIVE",
+    "required_segments": [
+      "ATP_CHALLENGER",
+      "ITF_MEN",
+      "ITF_WOMEN"
+    ],
+    "passed_segments": [],
+    "failed_segments": [],
+    "inconclusive_segments": [
+      "ATP_CHALLENGER",
+      "ITF_MEN",
+      "ITF_WOMEN"
+    ],
+    "comparisons": [
+      {
+        "segment": "ATP_CHALLENGER",
+        "status": "INCONCLUSIVE",
+        "reason": "no shared match key"
+      },
+      {
+        "segment": "ITF_MEN",
+        "status": "INCONCLUSIVE",
+        "reason": "only 0 paired matches",
+        "required": 200
+      },
+      {
+        "segment": "ITF_WOMEN",
+        "status": "INCONCLUSIVE",
+        "reason": "only 0 paired matches",
+        "required": 200
+      }
+    ]
+  },
+  "promoted": false
+}
