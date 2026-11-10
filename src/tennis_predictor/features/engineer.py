@@ -106,5 +106,6 @@ class FeatureEngineer:
             "pre_slam_rest_risk_player2",
             "dead_rubber",
             "already_qualified",
-            "large_line_move",
+            # "large_line_move" is NOT a feature: odds.py computes it from the CLOSING line, which is only known after
+            # the bet would have been placed. It stays in the frame for reports and filters.
         ]

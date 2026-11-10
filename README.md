@@ -13,6 +13,9 @@ A modular Python pipeline for ATP/WTA match ingestion, leakage-safe feature gene
 - Maximum-likelihood Elo logistic scale fitting.
 - LightGBM probability model with a chronological calibration holdout and isotonic or Platt calibration.
 - Two-way de-vigging, model/market edge, line movement, flat-bet ROI, fractional-Kelly ROI, CLV, and bootstrap confidence intervals.
+- The market benchmark: every metrics row carries the de-vigged closing price's own log loss and Brier on the rows that have a price, the model's on the same rows, and `log_loss_vs_market` (below zero = the model's probabilities beat the market's). Read this before any ROI figure: a model that loses here cannot be made profitable by a betting rule.
+- Retirements, walkovers and defaults are voided in the backtest (stake returned), as on Polymarket and most books; `voided` marks them.
+- A guard refuses walk-forward data where player 1 wins more than 65% of matches (winner-oriented data leaks the result into every feature).
 - Walk-forward reports for the full sample and by ATP/WTA, tier, and filtered/unfiltered views.
 - A serializable `TennisPredictionSystem.predict_match(...)` API.
 

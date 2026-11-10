@@ -565,6 +565,9 @@ def build_candidate_model(
         "closing_odds_player2",
         "market_p1_open",
         "market_p1_close",
+        "line_move_p1",
+        "late_line_move_p1",
+        "large_line_move",      # built from the closing line (data/odds.py): known only after the bet
         "player1_won",
         "score",
         "status",
