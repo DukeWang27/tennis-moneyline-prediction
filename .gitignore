@@ -29,9 +29,9 @@
 __pycache__/
 config.yaml
 dashboard_patch_backups/
-data/
-data/processed/
-data/raw/
+/data/
+/data/processed/
+/data/raw/
 outputs/
 surface_patch_backups/
 venv/

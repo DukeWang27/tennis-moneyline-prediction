@@ -106,6 +106,36 @@ def expected_calibration_error(
     return float(ece)
 
 
+def _market_benchmark(frame: pd.DataFrame) -> dict[str, float]:
+    """The market's own log loss and Brier on the rows that carry a de-vigged closing probability, and the model's on
+    exactly the same rows. ``log_loss_vs_market`` below zero means the model's probabilities are better than the
+    closing price's. No betting rule can make money from a model that fails this, so it is the first number to read.
+    """
+    out = {
+        "market_matches": 0,
+        "market_log_loss": np.nan,
+        "market_brier": np.nan,
+        "model_log_loss_same_rows": np.nan,
+        "model_brier_same_rows": np.nan,
+        "log_loss_vs_market": np.nan,
+    }
+    if "market_p1_close" not in frame:
+        return out
+    rows = frame.dropna(subset=["market_p1_close", "actual", "probability"])
+    out["market_matches"] = int(len(rows))
+    if len(rows) < 2 or rows["actual"].nunique() < 2:
+        return out
+    y = rows["actual"].astype(int)
+    market = rows["market_p1_close"].astype(float).clip(1e-6, 1 - 1e-6)
+    model = rows["probability"].astype(float).clip(1e-6, 1 - 1e-6)
+    out["market_log_loss"] = float(log_loss(y, market, labels=[0, 1]))
+    out["market_brier"] = float(brier_score_loss(y, market))
+    out["model_log_loss_same_rows"] = float(log_loss(y, model, labels=[0, 1]))
+    out["model_brier_same_rows"] = float(brier_score_loss(y, model))
+    out["log_loss_vs_market"] = out["model_log_loss_same_rows"] - out["market_log_loss"]
+    return out
+
+
 def _derive_competition_segment(frame: pd.DataFrame) -> pd.Series:
     if "competition_segment" in frame:
         existing = frame["competition_segment"].fillna("").astype(str)
@@ -216,5 +246,6 @@ def evaluate_predictions(
                 "actual_win_rate": y.mean(),
             }
             row.update(_bet_metrics(valid, bootstrap_samples, random_state))
+            row.update(_market_benchmark(valid))
             rows.append(row)
     return pd.DataFrame(rows)

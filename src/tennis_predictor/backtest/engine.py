@@ -45,8 +45,20 @@ class WalkForwardBacktester:
                 fold += 1
             start = test_end
 
+    # Walk-forward data must not be oriented by the winner. With player 1 drawn at random, their win rate is ~50%; a run
+    # on 2026-07-18 had 76% (82.8% accuracy, +137% ROI) because the source listed the winner first. That is a leak.
+    MAX_PLAYER1_WIN_RATE = 0.65
+    MIN_ROWS_FOR_ORIENTATION_CHECK = 500
+
     def run(self, features: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         frame = features.sort_values(["date", "match_id"]).reset_index(drop=True).copy()
+        if len(frame) >= self.MIN_ROWS_FOR_ORIENTATION_CHECK:
+            rate = float(frame["player1_won"].mean())
+            if not (1 - self.MAX_PLAYER1_WIN_RATE) <= rate <= self.MAX_PLAYER1_WIN_RATE:
+                raise ValueError(
+                    f"player1 won {rate:.1%} of {len(frame)} matches. The data looks oriented by the winner, which leaks "
+                    "the result into every feature. Randomise which player is player1 before building features."
+                )
         feature_columns = FeatureEngineer.numeric_feature_columns()
         predictions: list[pd.DataFrame] = []
 
@@ -163,8 +175,14 @@ class WalkForwardBacktester:
         has_market = output["market_p1_open"].notna()
         edge1 = output["probability"] - output["market_p1_open"]
         edge2 = (1.0 - output["probability"]) - (1.0 - output["market_p1_open"])
-        bet1 = has_market & (edge1 >= self.backtest_config.edge_threshold)
-        bet2 = has_market & (edge2 >= self.backtest_config.edge_threshold)
+        # Retirements, walkovers and defaults are voided (stake returned) on Polymarket and by most books, so they are
+        # neither a win nor a loss here. They used to settle as ordinary results.
+        flags = output.reindex(columns=["retirement", "walkover", "defaulted"], fill_value=False)
+        void = (flags.astype(float).fillna(0.0) > 0).any(axis=1)
+        wanted = has_market & ((edge1 >= self.backtest_config.edge_threshold) | (edge2 >= self.backtest_config.edge_threshold))
+        output["voided"] = wanted & void
+        bet1 = has_market & ~void & (edge1 >= self.backtest_config.edge_threshold)
+        bet2 = has_market & ~void & (edge2 >= self.backtest_config.edge_threshold)
         output.loc[bet1, "bet_side"] = 1
         output.loc[bet2, "bet_side"] = 2
         placed = bet1 | bet2
