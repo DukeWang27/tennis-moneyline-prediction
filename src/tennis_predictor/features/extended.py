@@ -22,6 +22,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .chronology import enforce_round_order
+
 RAW_COLUMNS = [
     "tourney_id", "match_num", "winner_id", "loser_id", "winner_ht", "loser_ht", "winner_hand", "loser_hand",
     "winner_ioc", "loser_ioc", "winner_entry", "loser_entry", "winner_seed", "loser_seed", "winner_rank_points",
@@ -187,6 +189,9 @@ class ExtendedFeatureBuilder:
     def build(self, matches: pd.DataFrame) -> pd.DataFrame:
         """``matches`` needs match_id, date (or chronology_ts), tour, player1_id, player2_id, player1_won."""
         order = matches.assign(_ts=pd.to_datetime(matches.get("chronology_ts", matches["date"])))
+        if "round" in order:
+            order = enforce_round_order(order)
+            order["_ts"] = order["chronology_ts"]
         order = order.sort_values(["_ts", "match_id"], kind="mergesort")
         details = self.details.reindex(order["match_id"])
         out: dict[str, dict] = {}

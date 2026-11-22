@@ -4,6 +4,7 @@ import pandas as pd
 
 from tennis_predictor.config import FeatureConfig, FilterConfig
 from tennis_predictor.filters.match_filters import FilterEngine
+from .chronology import enforce_round_order
 from .state import TennisState
 
 
@@ -18,11 +19,9 @@ class FeatureEngineer:
     def transform(self, matches: pd.DataFrame, *, reset: bool = True) -> pd.DataFrame:
         if reset:
             self.state = TennisState(self.feature_config, self.filter_config)
-        ordered = matches.copy()
-        if "chronology_ts" not in ordered:
-            ordered["chronology_ts"] = pd.to_datetime(ordered["date"], errors="coerce")
-        ordered["chronology_ts"] = pd.to_datetime(ordered["chronology_ts"], errors="coerce")
-        ordered = ordered.sort_values(["chronology_ts", "date", "event_date", "match_num", "match_id"]).copy()
+        ordered = enforce_round_order(matches)
+        sort_keys = [k for k in ("chronology_ts", "round_order", "date", "event_date", "match_num", "match_id") if k in ordered]
+        ordered = ordered.sort_values(sort_keys, kind="mergesort").copy()
         rows: list[dict] = []
         for _, match in ordered.iterrows():
             features = self.state.snapshot(
@@ -58,7 +57,7 @@ class FeatureEngineer:
         output["rank_missing2"] = output.get("player2_rank").isna().astype(int)
         output["date_estimated_numeric"] = output["date_is_estimated"].astype(int)
         output = FilterEngine.add_eligibility_views(output)
-        return output.sort_values(["chronology_ts", "date", "match_id"]).reset_index(drop=True)
+        return output.sort_values(["chronology_ts", "round_order", "date", "match_id"], kind="mergesort").reset_index(drop=True)
 
     @staticmethod
     def numeric_feature_columns() -> list[str]:
