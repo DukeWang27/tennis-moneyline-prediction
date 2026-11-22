@@ -37,6 +37,25 @@ Better in every segment (ATP main, WTA main, Challenger, ITF), and still well sh
 
 Reproduce: `python scripts/market_report.py outputs/backtest/predictions.parquet` (any backtest output).
 
+**Player factors on top of the odds (2026-11-22).** `scripts/odds_anchored_backtest.py` starts from the closing price
+and lets factors nudge it: the model's chance plus height, handedness, serve and return form, aces, double faults,
+break points, minutes and matches in recent days, a deep run the week before, home country, travel on short rest,
+qualifier/wildcard/seeded status and ranking points (`features/extended.py`). It bets only when expected value clears
++2% and sizes at a quarter of Kelly, capped at 2%. Walk-forward on 9,757 priced matches, 2022-01 to 2024-02:
+
+| | Log loss | Bets at EV >= +2% | ROI (95% interval) | Quarter-Kelly worst drop |
+|---|---|---|---|---|
+| Closing price as is | 0.5853 | | | |
+| Price, recalibrated | 0.5847 | 727 | +6.1% (-2.4% to +14.5%) | 14% |
+| Price + model's chance | 0.5848 | 927 | +4.7% (-2.8% to +12.3%) | 14% |
+| Price + all factors (pre-registered) | 0.5863 | 4,765 | +1.8% (-1.5% to +5.0%) | 60% |
+
+None is distinguishable from zero, and adding the factors made the probabilities worse than the price alone. A first
+run showed +3.8% (+0.9% to +6.9%) for the last row; that came from a leak, now fixed (`features/chronology.py`): exact
+odds dates moved some matches after their own next-round match, so "still in the draw tomorrow" leaked the result.
+Bets at odds 2.00-3.00 were positive in every row (+5.7% to +8.1%), but that is one slice of many, found after the
+fact; treat it as an idea to paper-test, not a result.
+
 ## What is implemented
 
 - ATP and WTA yearly Sackmann-format CSV ingestion from attributable GitHub mirrors, including optional ATP qualifying/Challenger and WTA qualifying/ITF files.
