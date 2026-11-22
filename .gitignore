@@ -35,3 +35,11 @@ dashboard_patch_backups/
 outputs/
 surface_patch_backups/
 venv/
+
+# Hand-made backups and run logs (use git history instead)
+*.before-*
+*.log
+src-before-*/
+recovery/
+diagnostics/
+successful_runs/
