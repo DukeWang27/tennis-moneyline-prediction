@@ -12,7 +12,6 @@ from tennis_predictor.data import OddsAligner, SackmannLoader, load_normalized_s
 from tennis_predictor.features import FeatureEngineer
 from tennis_predictor.filters import FilterEngine
 from tennis_predictor.pipeline import TennisPredictionSystem
-from tennis_predictor.services import backfill_completed_matches, rebuild_live_state
 
 
 def _config(path: str) -> AppConfig:
@@ -110,6 +109,8 @@ def sync_main(argv=None) -> None:
     parser.add_argument("--end", default=None)
     args = parser.parse_args(argv)
     config = _config(args.config)
+    from tennis_predictor.services import backfill_completed_matches
+
     report = backfill_completed_matches(
         config,
         model_path=args.model,
@@ -140,6 +141,8 @@ def rebuild_live_main(argv=None) -> None:
     parser.add_argument("--end", default=None)
     args = parser.parse_args(argv)
     config = _config(args.config)
+    from tennis_predictor.services import rebuild_live_state
+
     report = rebuild_live_state(
         config,
         base_model_path=args.base_model,

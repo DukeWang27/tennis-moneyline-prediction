@@ -109,3 +109,45 @@ class NameResolver:
             names = ", ".join(f"{x.name} ({x.player_id})" for x in identities)
             raise ValueError(f"Ambiguous fuzzy match for {name!r}: {names}")
         return identities[0]
+
+
+_INITIALS_SUFFIX = re.compile(r"^(?P<surname>.+?)\s+(?P<initials>(?:[A-Za-z]{1,3}\.[\s-]*)+)$")
+
+
+def _plain_tokens(value: str) -> list[str]:
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch)).casefold()
+    text = re.sub(r"[^a-z0-9 ]+", " ", text)
+    return text.split()
+
+
+def surname_initial_key(abbreviated: str | None) -> str | None:
+    """Key for a bookmaker-style name such as ``"Auger-Aliassime F."`` or ``"Kwon S.W."``.
+
+    Returns ``"auger aliassime|f"``: the surname tokens and the first initial. Returns ``None`` when the name
+    is not in that form, so callers can fall back to fuzzy matching instead of guessing.
+    """
+    if not abbreviated or "." not in str(abbreviated):
+        return None
+    match = _INITIALS_SUFFIX.match(str(abbreviated).strip())
+    if not match:
+        return None
+    surname = _plain_tokens(match.group("surname"))
+    initials = _plain_tokens(match.group("initials"))
+    if not surname or not initials:
+        return None
+    return f"{' '.join(surname)}|{initials[0][0]}"
+
+
+def full_name_keys(full_name: str | None) -> set[str]:
+    """Every surname/initial key a full name such as ``"Alex de Minaur"`` could be abbreviated to.
+
+    The split between given names and surname is unknown, so all splits are produced
+    (``"de minaur|a"``, ``"minaur|a"``), plus the surname-first order used for some Asian names.
+    """
+    tokens = _plain_tokens(full_name or "")
+    if len(tokens) < 2:
+        return set()
+    keys = {f"{' '.join(tokens[k:])}|{tokens[0][0]}" for k in range(1, len(tokens))}
+    keys.add(f"{tokens[0]}|{tokens[-1][0]}")
+    return keys

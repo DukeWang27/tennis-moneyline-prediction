@@ -134,16 +134,25 @@ class ConsolidationReport:
         return asdict(self)
 
 
+_ITF_TIER = r"^(?:itf\b.*|[mw]\s?\d{2,3}\b.*)$"  # "ITF", "ITF M15", "ITF W25", "M25", "W60"
+
+
 def derive_competition_segment(frame: pd.DataFrame) -> pd.Series:
+    """ATP_MAIN / WTA_MAIN / ATP_CHALLENGER / ITF_MEN / ITF_WOMEN, keeping any segment a source already set."""
+    if "competition_segment" in frame:
+        existing = frame["competition_segment"].astype("string").fillna("").str.strip()
+    else:
+        existing = pd.Series("", index=frame.index, dtype="string")
     tour = frame.get("tour", pd.Series("", index=frame.index)).fillna("").astype(str).str.upper()
-    tier = frame.get("tier", pd.Series("", index=frame.index)).fillna("").astype(str).str.casefold()
+    tier = frame.get("tier", pd.Series("", index=frame.index)).fillna("").astype(str).str.strip().str.casefold()
+    itf = tier.str.match(_ITF_TIER)
     result = pd.Series("OTHER", index=frame.index, dtype="string")
     result = result.mask(tour.eq("ATP") & tier.eq("challenger"), "ATP_CHALLENGER")
-    result = result.mask(tour.eq("ATP") & tier.eq("itf"), "ITF_MEN")
-    result = result.mask(tour.eq("WTA") & tier.eq("itf"), "ITF_WOMEN")
+    result = result.mask(tour.eq("ATP") & itf, "ITF_MEN")
+    result = result.mask(tour.eq("WTA") & itf, "ITF_WOMEN")
     result = result.mask(tour.eq("ATP") & result.eq("OTHER"), "ATP_MAIN")
     result = result.mask(tour.eq("WTA") & result.eq("OTHER"), "WTA_MAIN")
-    return result
+    return result.mask(existing.ne(""), existing)
 
 
 class CanonicalMatchConsolidator:
@@ -457,6 +466,24 @@ class CanonicalMatchConsolidator:
         end_date: object | None = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame, ConsolidationReport, pd.DataFrame]:
         input_rows = sum(len(frame) for frame, _ in sources if frame is not None)
+        # Trim to the date window before identity resolution: resolving players from out-of-window rows is wasted work
+        # on large archives and registers identities the build never uses.
+        if start_date is not None or end_date is not None:
+            windowed = []
+            for frame, name in sources:
+                if frame is None or frame.empty or "date" not in frame:
+                    windowed.append((frame, name))
+                    continue
+                frame = frame.copy()
+                frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+                keep = frame["date"].notna()
+                if start_date is not None:
+                    keep &= frame["date"] >= pd.Timestamp(start_date)
+                if end_date is not None:
+                    keep &= frame["date"] <= pd.Timestamp(end_date)
+                windowed.append((frame.loc[keep], name))
+            sources = windowed
+            input_rows = sum(len(frame) for frame, _ in sources if frame is not None)
         canonical, unresolved = self.canonicalize(sources)
         if canonical.empty:
             return canonical, unresolved, ConsolidationReport(

@@ -31,8 +31,9 @@ class TennisDataLoadReport:
 class TennisDataLoader:
     """Normalize local Tennis-Data CSV files into the existing odds-snapshot schema."""
 
-    def __init__(self, directory: str | Path):
+    def __init__(self, directory: str | Path, bookmakers: list[str] | None = None):
         self.directory = Path(directory)
+        self.bookmakers = set(bookmakers) if bookmakers else None
 
     @staticmethod
     def _read(path: Path) -> pd.DataFrame:
@@ -48,14 +49,41 @@ class TennisDataLoader:
     def _tour(frame: pd.DataFrame, path: Path) -> pd.Series:
         if "Tour" in frame:
             return frame["Tour"].fillna("").astype(str).str.upper()
+        # Tennis-Data numbers tournaments in an "ATP" or a "WTA" column; that is the reliable tour marker.
+        # Women's files are often named like "2023f.csv", so the filename alone labeled them ATP.
+        if "WTA" in frame.columns and "ATP" not in frame.columns:
+            return pd.Series("WTA", index=frame.index)
+        if "ATP" in frame.columns:
+            return pd.Series("ATP", index=frame.index)
         filename = path.name.casefold()
         if "wta" in filename:
             return pd.Series("WTA", index=frame.index)
         return pd.Series("ATP", index=frame.index)
 
     @staticmethod
-    def _commence_time(frame: pd.DataFrame) -> pd.Series:
-        dates = pd.to_datetime(frame.get("Date"), errors="coerce", dayfirst=True)
+    def _parse_dates(raw: pd.Series) -> pd.Series:
+        """Parse a file's dates, choosing day-first or month-first by which reads the file in order.
+
+        The site's own CSVs are day-first, but re-exported copies are often month-first ("1/7/2021" is 7 January),
+        and reading those day-first silently moves matches by months. Files are listed in tournament order, so the
+        right reading is the one whose dates rarely go backwards.
+        """
+        text = raw.astype("string").str.strip()
+        candidates = []
+        for dayfirst in (True, False):
+            parsed = pd.Series(pd.NaT, index=raw.index, dtype="datetime64[ns]")
+            iso = text.str.match(r"^\d{4}-\d{2}-\d{2}", na=False)
+            parsed[iso] = pd.to_datetime(text[iso], errors="coerce", format="ISO8601")
+            other = ~iso & text.notna()
+            parsed[other] = pd.to_datetime(text[other], errors="coerce", dayfirst=dayfirst, format="mixed")
+            valid = parsed.dropna()
+            backwards = (valid.diff().dt.days < -10).sum() if len(valid) > 1 else 0
+            candidates.append((backwards, -valid.size, dayfirst, parsed))
+        return min(candidates, key=lambda c: c[:3])[3]
+
+    @classmethod
+    def _commence_time(cls, frame: pd.DataFrame) -> pd.Series:
+        dates = cls._parse_dates(frame.get("Date", pd.Series(index=frame.index, dtype="string")))
         if "Time" in frame:
             combined = pd.to_datetime(
                 dates.dt.date.astype(str) + " " + frame["Time"].fillna("12:00").astype(str),
@@ -80,6 +108,8 @@ class TennisDataLoader:
             tours = self._tour(frame, path)
             tournaments = frame.get("Tournament", pd.Series("", index=frame.index)).fillna("")
             for bookmaker, (winner_col, loser_col) in _ODDS_PAIRS.items():
+                if self.bookmakers is not None and bookmaker not in self.bookmakers:
+                    continue
                 if winner_col not in frame or loser_col not in frame:
                     continue
                 winner_odds = pd.to_numeric(frame[winner_col], errors="coerce")

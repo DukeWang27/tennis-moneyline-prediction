@@ -2,6 +2,41 @@
 
 A modular Python pipeline for ATP/WTA match ingestion, leakage-safe feature generation, calibrated win probabilities, market comparison, and walk-forward backtesting.
 
+## Results so far (read this first)
+
+Walk-forward backtest, 2021-01 to 2024-02, on the 14,654 ATP and WTA main-tour matches with a Pinnacle closing price
+(Tennis-Data). Ratings were built from 554k matches since 2010, including Challenger and ITF; every test quarter was
+trained only on earlier data. Run on 2026-11-22 with `config.example.yaml` (fixed K = 32) plus the odds file and `test_start: 2021-01-01`.
+
+| | Log loss (lower is better) | Weight in a market + model blend | Betting the model's edge (>= 2%) at the close |
+|---|---|---|---|
+| Pinnacle closing price | **0.5879** | +1.05 | n/a |
+| LightGBM model | 0.6104 | -0.01 (95%: -0.08 to +0.06) | 11,337 bets, ROI -5.5% (95%: -7.8% to -3.0%) |
+| Elo baseline | 0.6277 | -0.06 (95%: -0.12 to +0.01) | 11,863 bets, ROI -5.3% (95%: -7.3% to -3.2%) |
+
+**The model does not beat the market and adds nothing to it.** Blended with the closing price, its weight is
+indistinguishable from zero, and a blend fitted walk-forward scores the same as the price alone (0.5892 vs 0.5891).
+The earlier Kaggle runs agree (`docs/history/past_runs/`, ROI -9.7% on 15,390 bets). No betting rule on top of these
+probabilities should be expected to make money; don't bet them.
+
+**What showed a hint of edge is price comparison, not prediction.** Buying the best price across books only when it
+beat Pinnacle's de-vigged price returned +2.0% on 13,640 bets (95%: -0.4% to +4.4%), and Bet365 alone +2.6% on 2,752
+(95%: -3.6% to +8.9%). Neither is proven, and the best price across dozens of international books is not something a
+US bettor can actually get. `tennis_predictor.market.value` prices exchange contracts (Kalshi, Polymarket US) against a
+sharp line, after Kalshi's fee, for paper-testing that idea where you can actually bet.
+
+**Rating update size.** The example config now uses `elo_k_schedule: match_count`, FiveThirtyEight's rule that a
+player's rating moves less as they play more. Same data and folds, all 213,010 test matches:
+
+| | Elo log loss | Model log loss | Model log loss on the 14,654 priced matches |
+|---|---|---|---|
+| fixed K = 32 | 0.6077 | 0.5808 | 0.6104 |
+| match_count | **0.5929** | **0.5739** | 0.6088 (market 0.5879) |
+
+Better in every segment (ATP main, WTA main, Challenger, ITF), and still well short of the closing price.
+
+Reproduce: `python scripts/market_report.py outputs/backtest/predictions.parquet` (any backtest output).
+
 ## What is implemented
 
 - ATP and WTA yearly Sackmann-format CSV ingestion from attributable GitHub mirrors, including optional ATP qualifying/Challenger and WTA qualifying/ITF files.
@@ -37,6 +72,26 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e .
 cp config.example.yaml config.yaml
 ```
+
+## Quick start with free data
+
+Results come from Sackmann-format CSVs (the default loader uses public mirrors; the original
+`JeffSackmann/tennis_atp` repository is no longer reachable) and odds from Tennis-Data CSVs:
+
+```bash
+tennis-download --config config.yaml                       # results into data/processed/matches.parquet
+python scripts/tennis_data_to_snapshots.py path/to/tennis_data_csvs data/odds/pinnacle_closing.csv
+# in config.yaml: odds.normalized_snapshots_path: data/odds/pinnacle_closing.csv
+#                 backtest.test_start: "2021-01-01"   (first year you have odds for)
+tennis-backtest --config config.yaml --output-dir outputs/backtest
+python scripts/market_report.py outputs/backtest/predictions.parquet
+```
+
+A full run (2010 onward, lower levels included) takes about 30 minutes and 6 GB of memory.
+
+Tennis-Data lists players as `"Zverev A."`. The aligner first matches those exactly on surname and first initial
+(14,651 of 14,655 aligned prices in the run above), and only falls back to fuzzy matching for other formats; fuzzy
+scores alone put `"Zverev A."` below the threshold and can't tell Alexander from Mischa.
 
 ## Download and preprocess
 
@@ -129,6 +184,14 @@ print(result)
 ```
 
 A requested prediction date must not precede the fitted state date. For a historical as-of prediction, rebuild the system with a cutoff date.
+
+## Modules not yet in the repository
+
+An old `data/` pattern in `.gitignore` kept eight modules out of Git. Four were recovered; `api_tennis`, `kaggle_sync`,
+`surface_audit` and `itf_women_sync` still exist only in the original working copy. Without them the backtest,
+prediction and dashboard work; the live API-Tennis sync, Kaggle sync and ITF women's sync commands do not, and their
+12 test files are skipped (`pytest -rs` lists the reason). Copy the four files into `src/tennis_predictor/data/` and
+commit them to restore everything; nothing else needs to change.
 
 ## Testing
 

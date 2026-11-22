@@ -54,6 +54,11 @@ class TennisState:
         blended = weight * surface_elo + (1.0 - weight) * state.overall_elo
         return blended, surface_elo, n
 
+    def _k(self, matches_played: int) -> float:
+        if getattr(self.cfg, "elo_k_schedule", "fixed") == "match_count":
+            return self.cfg.elo_k_numerator / (matches_played + self.cfg.elo_k_offset) ** self.cfg.elo_k_exponent
+        return self.cfg.elo_k
+
     def _recent_form(self, state: PlayerState, date: pd.Timestamp, n: int) -> float:
         values = list(state.results)[-n:]
         if not values:
@@ -197,17 +202,17 @@ class TennisState:
             # state, but never create or alter an "Unknown" surface rating.
             rating1, rating2 = p1.overall_elo, p2.overall_elo
         expected1 = 1.0 / (1.0 + 10.0 ** ((rating2 - rating1) / 400.0))
-        delta = self.cfg.elo_k * match_weight * (outcome1 - expected1)
-        p1.overall_elo += delta
-        p2.overall_elo -= delta
+        surprise1 = match_weight * (outcome1 - expected1)
+        p1.overall_elo += self._k(p1.total_matches) * surprise1
+        p2.overall_elo -= self._k(p2.total_matches) * surprise1
 
         if surface_known:
             s1 = p1.surface_elo.get(surface, self.cfg.initial_elo)
             s2 = p2.surface_elo.get(surface, self.cfg.initial_elo)
             expected_surface1 = 1.0 / (1.0 + 10.0 ** ((s2 - s1) / 400.0))
-            surface_delta = self.cfg.elo_k * match_weight * (outcome1 - expected_surface1)
-            p1.surface_elo[surface] = s1 + surface_delta
-            p2.surface_elo[surface] = s2 - surface_delta
+            surface_surprise1 = match_weight * (outcome1 - expected_surface1)
+            p1.surface_elo[surface] = s1 + self._k(p1.surface_matches.get(surface, 0)) * surface_surprise1
+            p2.surface_elo[surface] = s2 - self._k(p2.surface_matches.get(surface, 0)) * surface_surprise1
         if match_weight > 0:
             if surface_known:
                 p1.surface_matches[surface] = p1.surface_matches.get(surface, 0) + 1

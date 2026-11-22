@@ -137,19 +137,9 @@ def _market_benchmark(frame: pd.DataFrame) -> dict[str, float]:
 
 
 def _derive_competition_segment(frame: pd.DataFrame) -> pd.Series:
-    if "competition_segment" in frame:
-        existing = frame["competition_segment"].fillna("").astype(str)
-    else:
-        existing = pd.Series("", index=frame.index)
-    tour = frame.get("tour", pd.Series("", index=frame.index)).fillna("").astype(str).str.upper()
-    tier = frame.get("tier", pd.Series("", index=frame.index)).fillna("").astype(str).str.casefold()
-    result = existing.where(existing.ne(""), "OTHER")
-    result = result.mask(tour.eq("ATP") & tier.eq("challenger"), "ATP_CHALLENGER")
-    result = result.mask(tour.eq("ATP") & tier.eq("itf"), "ITF_MEN")
-    result = result.mask(tour.eq("WTA") & tier.eq("itf"), "ITF_WOMEN")
-    result = result.mask(tour.eq("ATP") & result.eq("OTHER"), "ATP_MAIN")
-    result = result.mask(tour.eq("WTA") & result.eq("OTHER"), "WTA_MAIN")
-    return result
+    from tennis_predictor.data.match_consolidation import derive_competition_segment
+
+    return derive_competition_segment(frame)
 
 
 def calibration_curve_table(predictions: pd.DataFrame, *, bins: int = 10) -> pd.DataFrame:

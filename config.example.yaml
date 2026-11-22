@@ -18,6 +18,7 @@ filters:
 features:
   initial_elo: 1500.0
   elo_k: 32.0
+  elo_k_schedule: match_count  # K shrinks as a player plays more (FiveThirtyEight); "fixed" uses elo_k for every match
   surface_prior_matches: 20.0
   retirement_elo_weight: 0.25
   walkover_elo_weight: 0.0
@@ -42,6 +43,7 @@ model:
     verbosity: -1
 
 backtest:
+  test_start: null             # e.g. "2021-01-01": first test date; set it to where your odds start
   min_train_years: 3
   test_months: 3
   calibration_days: 180
@@ -53,7 +55,7 @@ backtest:
   random_state: 27
 
 odds:
-  normalized_snapshots_path: null
+  normalized_snapshots_path: null   # e.g. data/odds/pinnacle_closing.csv (scripts/tennis_data_to_snapshots.py)
   api_key_env: ODDS_API_KEY
   regions: us,uk,eu
   bookmakers: null

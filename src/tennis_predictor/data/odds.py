@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 from rapidfuzz.fuzz import WRatio
 
-from .names import normalize_name
+from .names import full_name_keys, normalize_name, surname_initial_key
 from tennis_predictor.market.odds_math import devig_two_way
 
 
@@ -220,15 +220,63 @@ class OddsAligner:
         reverse = (WRatio(a1, b2) + WRatio(a2, b1)) / 2
         return (direct, False) if direct >= reverse else (reverse, True)
 
+    KEY_DATE_WINDOW_DAYS = 3
+
+    def _key_align(self, matches: pd.DataFrame, snapshots: pd.DataFrame) -> tuple[list[dict[str, Any]], pd.Series]:
+        """Exact surname+initial matching for bookmaker-style names (``"Zverev A."``).
+
+        Fuzzy scores put ``"a zverev"`` at 85.5 against ``"alexander zverev"`` (below the threshold) and cannot tell
+        Alexander from Mischa, so abbreviated feeds such as Tennis-Data go through this pass first. A snapshot is taken
+        only when exactly one match in the date window has both players; anything ambiguous falls through to fuzzy.
+        """
+        index: dict[tuple[str, frozenset[str]], list[tuple[pd.Timestamp, str, bool]]] = {}
+        keys1 = matches["player1"].map(full_name_keys)
+        keys2 = matches["player2"].map(full_name_keys)
+        dates = matches["date"].dt.normalize()
+        for tour, k1s, k2s, date, match_id in zip(matches["tour"], keys1, keys2, dates, matches["match_id"]):
+            for k1 in k1s:
+                for k2 in k2s:
+                    if k1 != k2:
+                        index.setdefault((str(tour), frozenset((k1, k2))), []).append((date, match_id, k1))
+        rows: list[dict[str, Any]] = []
+        matched = pd.Series(False, index=snapshots.index)
+        window = pd.Timedelta(days=self.KEY_DATE_WINDOW_DAYS)
+        for idx, row in zip(snapshots.index, snapshots.itertuples(index=False)):
+            a, b = surname_initial_key(row.player1), surname_initial_key(row.player2)
+            if not a or not b or a == b:
+                continue
+            tour = str(getattr(row, "tour", "") or "").upper()
+            tours = [tour] if tour in {"ATP", "WTA"} else ["ATP", "WTA"]
+            event_date = pd.Timestamp(row.commence_time).normalize()
+            hits = {
+                (match_id, k1)
+                for t in tours
+                for date, match_id, k1 in index.get((t, frozenset((a, b))), [])
+                if abs(date - event_date) <= window
+            }
+            if len({match_id for match_id, _ in hits}) != 1:
+                continue
+            match_id, first_key = next(iter(hits))
+            data = row._asdict()
+            reversed_order = first_key != a
+            if reversed_order:
+                data["decimal_odds1"], data["decimal_odds2"] = data["decimal_odds2"], data["decimal_odds1"]
+            data.update({"match_id": match_id, "alignment_score": 100.0, "provider_order_reversed": reversed_order})
+            rows.append(data)
+            matched.loc[idx] = True
+        return rows, matched
+
     def align(self, matches: pd.DataFrame, snapshots: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         matches = matches.copy()
         snapshots = snapshots.copy()
+        key_rows, key_matched = self._key_align(matches, snapshots)
+        snapshots = snapshots.loc[~key_matched]
         match_names = matches.assign(
             _p1=matches["player1"].map(normalize_name),
             _p2=matches["player2"].map(normalize_name),
             _t=matches["tournament"].map(normalize_name),
         )
-        aligned_rows: list[dict[str, Any]] = []
+        aligned_rows: list[dict[str, Any]] = list(key_rows)
         for row in snapshots.itertuples(index=False):
             event_date = pd.Timestamp(row.commence_time).normalize()
             candidates = match_names[

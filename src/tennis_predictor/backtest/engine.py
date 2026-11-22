@@ -34,6 +34,8 @@ class WalkForwardBacktester:
 
     def _folds(self, frame: pd.DataFrame):
         start = frame["date"].min().normalize() + pd.DateOffset(years=self.backtest_config.min_train_years)
+        if self.backtest_config.test_start:
+            start = max(start, pd.Timestamp(self.backtest_config.test_start))
         end = frame["date"].max().normalize() + pd.Timedelta(days=1)
         fold = 0
         while start < end:

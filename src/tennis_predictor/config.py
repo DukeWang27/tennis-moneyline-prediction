@@ -34,6 +34,13 @@ class FilterConfig:
 class FeatureConfig:
     initial_elo: float = 1500.0
     elo_k: float = 32.0
+    # "fixed": every match moves ratings by elo_k. "match_count": FiveThirtyEight's schedule,
+    # K = elo_k_numerator / (matches_played + elo_k_offset) ** elo_k_exponent, so new players' ratings move fast and
+    # established players' slowly. Kovalchik (2016) found it the most accurate of the simple tennis rating systems.
+    elo_k_schedule: str = "fixed"
+    elo_k_numerator: float = 250.0
+    elo_k_offset: float = 5.0
+    elo_k_exponent: float = 0.4
     surface_prior_matches: float = 20.0
     retirement_elo_weight: float = 0.25
     walkover_elo_weight: float = 0.0
@@ -74,6 +81,9 @@ class BacktestConfig:
     max_kelly_fraction: float = 0.05
     bootstrap_samples: int = 1000
     random_state: int = 27
+    # First test date. Folds before it are skipped (they still serve as training data). Set it to where your odds
+    # start: folds without prices cannot be compared with the market and only cost time.
+    test_start: str | None = None
 
 
 @dataclass(slots=True)
